@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: slashbench
+      POSTGRES_PASSWORD: slashbench
+      POSTGRES_DB: slashbench
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slashbench"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rocket:
+    build: ./services/rocket
+    profiles: ["rocket"]
+    environment:
+      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  actix-web:
+    build: ./services/actix-web
+    profiles: ["actix-web"]
+    environment:
+      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
