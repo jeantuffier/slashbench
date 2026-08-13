@@ -37,3 +37,43 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  spring-java:
+    build: ./services/spring-java
+    profiles: ["spring-java"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  spring-kotlin:
+    build: ./services/spring-kotlin
+    profiles: ["spring-kotlin"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  node-hono:
+    build: ./services/node-hono
+    profiles: ["node-hono"]
+    environment:
+      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bun-hono:
+    build: ./services/bun-hono
+    profiles: ["bun-hono"]
+    environment:
+      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
