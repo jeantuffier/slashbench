@@ -165,8 +165,16 @@ The code is the easy part — commit and push to GitHub daily and it's already r
 
 ## Progress summary
 
-All six services implemented, containerized, and manually verified against the same JSON contract: `rocket`, `actix-web`, `spring-java`, `spring-kotlin`, `node-hono`, `bun-hono`. Idle-memory numbers collected so far are NOT the report's real data — they're sanity checks. The actual benchmark (sweep for minimum viable footprint under SLA, soak test, cost model) still needs the CLI orchestrator and k6, which haven't been built yet. Running well ahead of the Aug 13-17 timeline slots for this — all six stacks that were spread across Aug 13-17 in the original plan are done same-day.
+All six services implemented, containerized, and manually verified against the same JSON contract: `rocket`, `actix-web`, `spring-java`, `spring-kotlin`, `node-hono`, `bun-hono`. Idle-memory numbers collected during that phase are NOT the report's real data — they're sanity checks. Running well ahead of the Aug 13-17 timeline slots — all six stacks originally spread across Aug 13-17 were done same-day.
+
+- **Aug 13, 2026 (evening) — CLI orchestrator (§7) built, `dry-run` subcommand working.** New Rust binary at `cli/` (`docker.rs` for compose lifecycle + health polling, `k6.rs` for invoking `loadtest/script.js` and parsing `--summary-export` JSON, `main.rs` for the stepped-rate dry-run loop). Shared k6 script at `loadtest/script.js` implements the 50% point-read / 20% list / 30% write mix from §5, with `summaryTrendStats` extended to include p(99) (k6's default summary omits it, and the SLA is defined in terms of it).
+  - Validated on Rocket alone first, then ran across all six stacks as an agreed throwaway shakedown (not the real numbers — see below). Zero crashes across 6 full build/start/reseed/ladder/stop cycles.
+  - All six stacks broke at the identical rate=6400 step with 57-77% error rates and 6-9 SECOND p99 latencies — that uniformity (not staggered per-stack breaking points) is the signature of the k6 client exhausting local ephemeral ports talking to `127.0.0.1` on the same machine as the target ("can't assign requested address"), not real server capacity differences. This is exactly why §3 requires the load generator on a separate machine from the target — confirmed empirically, not just asserted from the plan.
+  - `results/dry-run.json` currently holds this shakedown's numbers (ceiling 3200 req/s for all six, recommended target 1920 req/s) — **these are not usable for the report.** They're laptop/loopback artifacts, not real per-stack throughput. Re-run for real once the GCE target + load-gen VMs exist.
+  - Real gotcha fixed along the way: k6's default `--summary-export` omits p(99) entirely; had to set `summaryTrendStats` explicitly.
 
 ## Open next step
 
-CLI orchestrator (§7): container lifecycle management + the memory-ceiling sweep controller (§4) — dry-run all six stacks uncapped first to find the weakest stack's throughput ceiling and lock the shared target load (§8, originally slotted for Aug 17), since nothing in the sweep methodology can proceed without that number.
+Two independent paths, neither blocked on the other:
+1. **Provision the two GCE VMs (§3, §8)** and re-run `slashbench dry-run --stack all` there for real — this is what actually locks the SLA/target-load numbers. Requires a GCP project + billing + `gcloud` auth confirmed with Jean first (not done unprompted — billed resources).
+2. **Build the memory-ceiling sweep controller (§4 steps 3-4)** — can be developed and tested locally against a placeholder target rate now; swap in the real locked target load once path 1 completes.

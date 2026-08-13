@@ -1,0 +1,30 @@
+{
+  "ceilings": [
+    {
+      "ceiling_rps": 3200,
+      "stack": "rocket"
+    },
+    {
+      "ceiling_rps": 3200,
+      "stack": "actix-web"
+    },
+    {
+      "ceiling_rps": 3200,
+      "stack": "spring-java"
+    },
+    {
+      "ceiling_rps": 3200,
+      "stack": "spring-kotlin"
+    },
+    {
+      "ceiling_rps": 3200,
+      "stack": "node-hono"
+    },
+    {
+      "ceiling_rps": 3200,
+      "stack": "bun-hono"
+    }
+  ],
+  "recommended_target_load_rps": 1920,
+  "weakest_ceiling_rps": 3200
+}
