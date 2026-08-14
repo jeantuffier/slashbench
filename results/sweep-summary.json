@@ -1,0 +1,46 @@
+{
+  "cpu_limit": "1.0",
+  "memory_ladder_mb": [
+    512,
+    384,
+    256,
+    192,
+    128,
+    96,
+    64,
+    48,
+    32,
+    24,
+    16,
+    12,
+    8
+  ],
+  "repeats": 3,
+  "results": [
+    {
+      "minimum_viable_mb": 8,
+      "stack": "actix-web"
+    },
+    {
+      "minimum_viable_mb": 128,
+      "stack": "spring-java"
+    },
+    {
+      "minimum_viable_mb": 192,
+      "stack": "spring-kotlin"
+    },
+    {
+      "minimum_viable_mb": 24,
+      "stack": "node-hono"
+    },
+    {
+      "minimum_viable_mb": 24,
+      "stack": "bun-hono"
+    }
+  ],
+  "sla": {
+    "error_rate": 0.01,
+    "p99_ms": 200.0
+  },
+  "target_rate_rps": 200
+}
