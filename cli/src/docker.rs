@@ -6,6 +6,32 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+/// Compose's naming convention for a service's single replica.
+pub fn container_name(stack: &str) -> String {
+    format!("slashbench-{stack}-1")
+}
+
+/// Reads the container's current memory usage straight from the cgroup v2
+/// pseudo-file — precise bytes, no parsing `docker stats`' human-formatted
+/// "6.26MiB / 8MiB" strings (confirmed this path exists in our containers
+/// before relying on it, not assumed).
+pub fn sample_memory_bytes(stack: &str) -> Result<u64> {
+    let output = Command::new("docker")
+        .args(["exec", &container_name(stack), "cat", "/sys/fs/cgroup/memory.current"])
+        .output()
+        .context("running docker exec cat /sys/fs/cgroup/memory.current")?;
+    if !output.status.success() {
+        bail!(
+            "reading memory.current for {stack} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<u64>()
+        .context("parsing memory.current as an integer")
+}
+
 pub fn ensure_postgres(root: &Path, logger: &Logger) -> Result<()> {
     proc::run(
         logger,

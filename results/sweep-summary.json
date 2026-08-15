@@ -15,32 +15,35 @@
     12,
     8
   ],
-  "repeats": 3,
+  "repeats": 2,
   "results": [
     {
-      "minimum_viable_mb": 8,
-      "stack": "actix-web"
-    },
-    {
-      "minimum_viable_mb": 128,
-      "stack": "spring-java"
-    },
-    {
-      "minimum_viable_mb": 192,
-      "stack": "spring-kotlin"
-    },
-    {
-      "minimum_viable_mb": 24,
+      "burst_minimum_mb": 24,
+      "burst_passing_rungs_mb": [
+        512,
+        384,
+        256,
+        192,
+        128,
+        96,
+        64,
+        48,
+        32,
+        24
+      ],
+      "soak_confirmed_mb": 24,
       "stack": "node-hono"
-    },
-    {
-      "minimum_viable_mb": 24,
-      "stack": "bun-hono"
     }
   ],
   "sla": {
     "error_rate": 0.01,
     "p99_ms": 200.0
+  },
+  "soak_confirmation": {
+    "required_consecutive_passes": 2,
+    "sample_interval_secs": 10,
+    "skipped": false,
+    "total_duration_secs": 70
   },
   "target_rate_rps": 200
 }

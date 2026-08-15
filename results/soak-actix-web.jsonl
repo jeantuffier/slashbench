@@ -1,0 +1,4 @@
+{"achieved_rate":199.98628094112743,"elapsed_secs":0,"error_rate":0.0,"mem_bytes":6389760,"mem_mib":6.09375,"p95_ms":7.388649999999998,"p99_ms":9.2405,"stack":"actix-web"}
+{"achieved_rate":200.04402168341213,"elapsed_secs":15,"error_rate":0.0,"mem_bytes":7811072,"mem_mib":7.44921875,"p95_ms":7.357,"p99_ms":9.103,"stack":"actix-web"}
+{"achieved_rate":105.79162061270588,"elapsed_secs":30,"error_rate":0.12129290236587804,"mem_bytes":7708672,"mem_mib":7.3515625,"p95_ms":7.063,"p99_ms":9.498,"stack":"actix-web"}
+{"achieved_rate":200.04540850792256,"elapsed_secs":59,"error_rate":1.0,"mem_bytes":0,"mem_mib":0.0,"p95_ms":0.0,"p99_ms":0.0,"stack":"actix-web"}

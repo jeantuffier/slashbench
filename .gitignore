@@ -6,6 +6,6 @@ node_modules/
 .env
 .DS_Store
 *.log
-results/*.jsonl
+results/sweep.jsonl
 results/logs/
 .slashbench-mem-override-*.yml

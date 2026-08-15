@@ -1,0 +1,16 @@
+{"canary_latency_ms":5.7815,"canary_ok":true,"elapsed_secs":10,"kind":"sample","mem_bytes":24530944,"mem_ceiling_mb":24,"mem_mib":23.39453125,"stack":"node-hono"}
+{"canary_latency_ms":5.224292,"canary_ok":true,"elapsed_secs":20,"kind":"sample","mem_bytes":24154112,"mem_ceiling_mb":24,"mem_mib":23.03515625,"stack":"node-hono"}
+{"canary_latency_ms":5.837416,"canary_ok":true,"elapsed_secs":30,"kind":"sample","mem_bytes":24477696,"mem_ceiling_mb":24,"mem_mib":23.34375,"stack":"node-hono"}
+{"canary_latency_ms":4.602709,"canary_ok":true,"elapsed_secs":40,"kind":"sample","mem_bytes":24301568,"mem_ceiling_mb":24,"mem_mib":23.17578125,"stack":"node-hono"}
+{"canary_latency_ms":5.065542,"canary_ok":true,"elapsed_secs":50,"kind":"sample","mem_bytes":24502272,"mem_ceiling_mb":24,"mem_mib":23.3671875,"stack":"node-hono"}
+{"canary_latency_ms":4.744792,"canary_ok":true,"elapsed_secs":60,"kind":"sample","mem_bytes":24461312,"mem_ceiling_mb":24,"mem_mib":23.328125,"stack":"node-hono"}
+{"canary_latency_ms":6.904584,"canary_ok":true,"elapsed_secs":70,"kind":"sample","mem_bytes":21999616,"mem_ceiling_mb":24,"mem_mib":20.98046875,"stack":"node-hono"}
+{"achieved_rate":200.0084311817787,"elapsed_secs":70,"error_rate":0.0,"kind":"aggregate","mem_ceiling_mb":24,"p95_ms":7.103,"p99_ms":8.91,"passed":true,"stack":"node-hono"}
+{"canary_latency_ms":5.376125,"canary_ok":true,"elapsed_secs":10,"kind":"sample","mem_bytes":24342528,"mem_ceiling_mb":24,"mem_mib":23.21484375,"stack":"node-hono"}
+{"canary_latency_ms":7.006167,"canary_ok":true,"elapsed_secs":20,"kind":"sample","mem_bytes":24145920,"mem_ceiling_mb":24,"mem_mib":23.02734375,"stack":"node-hono"}
+{"canary_latency_ms":5.031583,"canary_ok":true,"elapsed_secs":30,"kind":"sample","mem_bytes":24629248,"mem_ceiling_mb":24,"mem_mib":23.48828125,"stack":"node-hono"}
+{"canary_latency_ms":5.980917,"canary_ok":true,"elapsed_secs":40,"kind":"sample","mem_bytes":24301568,"mem_ceiling_mb":24,"mem_mib":23.17578125,"stack":"node-hono"}
+{"canary_latency_ms":5.286084,"canary_ok":true,"elapsed_secs":50,"kind":"sample","mem_bytes":24342528,"mem_ceiling_mb":24,"mem_mib":23.21484375,"stack":"node-hono"}
+{"canary_latency_ms":5.844417,"canary_ok":true,"elapsed_secs":60,"kind":"sample","mem_bytes":24416256,"mem_ceiling_mb":24,"mem_mib":23.28515625,"stack":"node-hono"}
+{"canary_latency_ms":6.428667,"canary_ok":true,"elapsed_secs":70,"kind":"sample","mem_bytes":22884352,"mem_ceiling_mb":24,"mem_mib":21.82421875,"stack":"node-hono"}
+{"achieved_rate":199.96506574167532,"elapsed_secs":70,"error_rate":0.0,"kind":"aggregate","mem_ceiling_mb":24,"p95_ms":7.064,"p99_ms":8.812,"passed":true,"stack":"node-hono"}
