@@ -83,13 +83,24 @@ pub fn reseed(root: &Path, logger: &Logger) -> Result<()> {
     Ok(())
 }
 
+/// When set, every container start skips `--build` and relies on each
+/// service's `image:` field instead — for the official runs, where images
+/// are built and pushed to the registry once ahead of time rather than
+/// rebuilt from source on every one of the dozens of restarts a sweep/soak/
+/// price-sweep run triggers per stack. Unset by default so local dev
+/// (building from `services/<stack>` source) is unaffected.
+fn skip_build() -> bool {
+    std::env::var("SLASHBENCH_SKIP_BUILD").is_ok()
+}
+
 pub fn start_stack(root: &Path, logger: &Logger, stack: &str) -> Result<()> {
     let started = Instant::now();
-    proc::run(
-        logger,
-        &format!("Starting {stack} (uncapped)"),
-        Command::new("docker").current_dir(root).args(["compose", "--profile", stack, "up", "-d", "--build", stack]),
-    )?;
+    let mut args = vec!["compose", "--profile", stack, "up", "-d"];
+    if !skip_build() {
+        args.push("--build");
+    }
+    args.push(stack);
+    proc::run(logger, &format!("Starting {stack} (uncapped)"), Command::new("docker").current_dir(root).args(&args))?;
     logger.info(format!("{stack} container up after {:.1}s (build may be cached)", started.elapsed().as_secs_f64()));
     Ok(())
 }
@@ -127,24 +138,13 @@ pub fn remove_override(override_path: &Path) {
 pub fn start_stack_with_override(root: &Path, logger: &Logger, stack: &str, override_path: &Path, mem_mb: u32, cpus: &str) -> Result<()> {
     let override_str = override_path.to_str().expect("override path is valid utf8");
     let started = Instant::now();
-    proc::run(
-        logger,
-        &format!("Starting {stack} at mem={mem_mb}MiB cpu={cpus}"),
-        Command::new("docker").current_dir(root).args([
-            "compose",
-            "-f",
-            "docker-compose.yml",
-            "-f",
-            override_str,
-            "--profile",
-            stack,
-            "up",
-            "-d",
-            "--build",
-            "--force-recreate",
-            stack,
-        ]),
-    )?;
+    let mut args = vec!["compose", "-f", "docker-compose.yml", "-f", override_str, "--profile", stack, "up", "-d"];
+    if !skip_build() {
+        args.push("--build");
+    }
+    args.push("--force-recreate");
+    args.push(stack);
+    proc::run(logger, &format!("Starting {stack} at mem={mem_mb}MiB cpu={cpus}"), Command::new("docker").current_dir(root).args(&args))?;
     logger.info(format!("{stack} container up at mem={mem_mb}MiB after {:.1}s", started.elapsed().as_secs_f64()));
     Ok(())
 }

@@ -1,0 +1,58 @@
+{
+  "cpu_ladder": [
+    1.0,
+    0.5,
+    0.25,
+    0.125,
+    0.08
+  ],
+  "memory_ladder_mb": [
+    512,
+    384,
+    256,
+    192,
+    128,
+    96,
+    64,
+    48,
+    32,
+    24,
+    16,
+    12,
+    8
+  ],
+  "note": "Burst-only measurement (no soak-confirmation) — a comparative pricing analysis across (cpu, memory) points, not the authoritative minimum-footprint number (see sweep/soak for that).",
+  "repeats": 2,
+  "results": [
+    {
+      "points": [
+        {
+          "cpu": 1.0,
+          "min_mem_mb": 12
+        },
+        {
+          "cpu": 0.5,
+          "min_mem_mb": 8
+        },
+        {
+          "cpu": 0.25,
+          "min_mem_mb": 8
+        },
+        {
+          "cpu": 0.125,
+          "min_mem_mb": 8
+        },
+        {
+          "cpu": 0.08,
+          "min_mem_mb": 8
+        }
+      ],
+      "stack": "rocket"
+    }
+  ],
+  "sla": {
+    "error_rate": 0.01,
+    "p99_ms": 200.0
+  },
+  "target_rate_rps": 200
+}

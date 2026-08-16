@@ -1,14 +1,10 @@
-use crate::common::{median, parse_duration_secs, resolve_stacks, BASE_URL, SLA_ERROR_RATE, SLA_P99_MS, SWEEP_CPU_LIMIT};
+use crate::common::{base_url, median, parse_duration_secs, resolve_stacks, MEMORY_LADDER_MB, SLA_ERROR_RATE, SLA_P99_MS, SWEEP_CPU_LIMIT};
 use crate::docker;
 use crate::k6;
 use crate::log::Logger;
 use crate::soak::run_soak_once;
 use anyhow::Result;
 use clap::Args;
-
-// CLAUDE.md §4 step 3: CPU fixed generously at 1 vCPU, only memory varies —
-// memory is the headline claim, not CPU.
-const MEMORY_LADDER_MB: &[u32] = &[512, 384, 256, 192, 128, 96, 64, 48, 32, 24, 16, 12, 8];
 
 /// Step memory down at a fixed target load until the SLA breaks
 /// (CLAUDE.md §4 steps 3-4), then soak-confirm the result: a rung only
@@ -71,6 +67,7 @@ fn append_sweep_jsonl(root: &std::path::Path, stack: &str, mem_mb: u32, repeat: 
 
 pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<()> {
     let stacks = resolve_stacks(&args.stack);
+    let base_url = base_url();
     let soak_total_secs = parse_duration_secs(&args.soak_total_duration)?;
     let soak_sample_secs = parse_duration_secs(&args.soak_sample_interval)?;
     let mut results: Vec<(String, Vec<u32>, Option<u32>)> = Vec::new(); // (stack, burst-passing rungs desc, soak_confirmed_mb)
@@ -99,7 +96,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
                 break;
             }
 
-            if docker::wait_http_ready(logger, &format!("{BASE_URL}/items?page=1&limit=1"), 30).is_err() {
+            if docker::wait_http_ready(logger, &format!("{base_url}/items?page=1&limit=1"), 30).is_err() {
                 logger.warn(format!("mem={mem_mb}MiB -> failed to become ready (likely OOM at boot) -> FAIL"));
                 docker::remove_override(&override_path);
                 break;
@@ -107,7 +104,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
 
             docker::reseed(root, logger)?;
             logger.info("Warm-up run (result discarded) ...");
-            let _ = k6::run(root, logger, BASE_URL, args.target_rate, &args.warmup);
+            let _ = k6::run(root, logger, &base_url, args.target_rate, &args.warmup);
 
             let mut p99s = Vec::with_capacity(args.repeats as usize);
             let mut error_rates = Vec::with_capacity(args.repeats as usize);
@@ -116,7 +113,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
             for repeat in 0..args.repeats {
                 logger.info(format!("Measurement repeat {}/{} ...", repeat + 1, args.repeats));
                 docker::reseed(root, logger)?;
-                let result = k6::run(root, logger, BASE_URL, args.target_rate, &args.duration)?;
+                let result = k6::run(root, logger, &base_url, args.target_rate, &args.duration)?;
                 append_sweep_jsonl(root, stack_name, mem_mb, repeat, &result)?;
                 p99s.push(result.p99_ms);
                 error_rates.push(result.error_rate);

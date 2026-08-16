@@ -18,6 +18,8 @@ services:
 
   rocket:
     build: ./services/rocket
+    image: rg.fr-par.scw.cloud/slashbench/rocket:latest
+    platform: linux/amd64
     profiles: ["rocket"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
@@ -29,6 +31,8 @@ services:
 
   actix-web:
     build: ./services/actix-web
+    image: rg.fr-par.scw.cloud/slashbench/actix-web:latest
+    platform: linux/amd64
     profiles: ["actix-web"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
@@ -40,6 +44,8 @@ services:
 
   spring-java:
     build: ./services/spring-java
+    image: rg.fr-par.scw.cloud/slashbench/spring-java:latest
+    platform: linux/amd64
     profiles: ["spring-java"]
     ports:
       - "8080:8080"
@@ -49,6 +55,8 @@ services:
 
   spring-kotlin:
     build: ./services/spring-kotlin
+    image: rg.fr-par.scw.cloud/slashbench/spring-kotlin:latest
+    platform: linux/amd64
     profiles: ["spring-kotlin"]
     ports:
       - "8080:8080"
@@ -58,6 +66,8 @@ services:
 
   node-hono:
     build: ./services/node-hono
+    image: rg.fr-par.scw.cloud/slashbench/node-hono:latest
+    platform: linux/amd64
     profiles: ["node-hono"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
@@ -69,6 +79,8 @@ services:
 
   bun-hono:
     build: ./services/bun-hono
+    image: rg.fr-par.scw.cloud/slashbench/bun-hono:latest
+    platform: linux/amd64
     profiles: ["bun-hono"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench

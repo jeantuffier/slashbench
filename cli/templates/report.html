@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slashbench Report</title>
+<style>{{ css|safe }}</style>
+</head>
+<body>
+<header>
+  <h1>Slashbench</h1>
+  <p class="subtitle">Does Rust actually cost less to run than JVM/JS backends? A reproducible benchmark for "Rust will slash your backend costs" — JavaZone 2026.</p>
+</header>
+
+<section id="methodology">
+  <h2>Methodology</h2>
+  <p>Six stacks in three families — Rust (Rocket, Actix-web), JVM (Java + Spring Boot, Kotlin + Spring Boot), JS (Node + Hono, Bun + Hono) — implement the identical CRUD API against the identical Postgres schema, with a matched raw-driver DB tier (no ORM) so runtime overhead isn't confounded with ORM overhead. Each family holds one variable constant and varies the other, producing two "does this even matter?" control results before the cross-family comparison.</p>
+  <p>For each stack: a burst sweep steps memory down at a fixed target load until the SLA breaks, and the last passing rung is soak-confirmed by surviving sustained load for real (a footprint that only survives a few seconds isn't necessarily stable — see the per-stack detail below for cases where it wasn't). The monthly cost estimate uses GCP Cloud Run's instance-based (always-on) pricing against each stack's soak-confirmed footprint.</p>
+  <p class="run-params">{{ run_params }}</p>
+</section>
+
+<section id="headline">
+  <h2>Minimum viable footprint</h2>
+  <p>The soak-confirmed minimum memory each stack can run at while still meeting the SLA under sustained load — the actual result this benchmark exists to measure. Log scale, since the range spans over an order of magnitude.</p>
+  {% if let Some(id) = footprint_chart_id %}
+  <canvas id="{{ id }}"></canvas>
+  {% else %}
+  <p class="muted">No stacks have a measured footprint yet.</p>
+  {% endif %}
+</section>
+
+<section id="cost">
+  <h2>A GCP-specific gotcha: the always-on 1-vCPU floor</h2>
+  <p>Cloud Run's instance-based (always-on) billing tier has a hard minimum of 1 full vCPU — fractional CPU is only available under its separate request-based tier. Checked this against AWS Fargate, Azure Container Apps, and Scaleway Containers too: <strong>none of them have this floor</strong> — all three support fractional CPU (0.25, 0.25, and 0.07 vCPU minimums respectively) as their only billing mode, no GCP-style split between a floor-bound "always-on" tier and a fractional "request-based" one. So this is a real platform quirk specific to GCP's instance-based tier, not a universal cloud-economics fact. Since this benchmark holds CPU fixed at 1 vCPU throughout (to isolate memory as the tested variable), that same vCPU is also the real floor if you deploy this way on Cloud Run specifically — not a test artifact. The chart below splits it out: the fixed floor is identical for every stack (~$88/month); the memory-driven cost — the thing that actually varies — is the thin sliver on top, $0.10-$2/month in this dataset. The footprint chart above is the more honest headline; the fractional-CPU price comparison further down is the fairer cross-provider one.</p>
+  {% if let Some(id) = cost_chart_id %}
+  <canvas id="{{ id }}"></canvas>
+  {% else %}
+  <p class="muted">No stacks have a measured footprint yet.</p>
+  {% endif %}
+</section>
+
+<section id="providers">
+  <h2>Price vs. performance, across five pricing models</h2>
+  <p>Two complementary questions: <strong>how cheap can each stack go</strong> while still meeting the SLA (fractional CPU allowed — the fair comparison, unlike the GCP-specific floor above), and <strong>how much throughput does a fixed resource budget buy</strong>. Both measurements are provider-agnostic — a stack's real behavior doesn't depend on which cloud it's priced against — so each was measured once and priced five ways. Switch the pricing model below; both charts update together.</p>
+  <div class="provider-tabs">
+    {% for p in providers %}
+    <button type="button" class="provider-tab{% if p.key == "gcp_request" %} active{% endif %}" data-provider="{{ p.key }}" onclick="setProvider('{{ p.key }}')">{{ p.label }}</button>
+    {% endfor %}
+  </div>
+
+  <h3>Cheapest configuration meeting the SLA</h3>
+  {% if let Some(id) = price_chart_id %}
+  <canvas id="{{ id }}"></canvas>
+  {% else %}
+  <p class="muted">No price-sweep data yet — run <code>slashbench price-sweep</code>.</p>
+  {% endif %}
+
+  <h3>Throughput per dollar at a fixed resource allocation</h3>
+  {% if let Some(id) = perf_chart_id %}
+  <canvas id="{{ id }}"></canvas>
+  {% else %}
+  <p class="muted">No capacity data yet — run <code>slashbench capacity</code>.</p>
+  {% endif %}
+</section>
+
+<section id="grid">
+  <h2>Comparison grid</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Stack</th><th>Family</th><th>Dry-run ceiling</th><th>Burst minimum</th><th>Soak-confirmed</th><th>Est. monthly cost</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for row in grid_rows %}
+    <tr>
+      <td>{{ row.display_name }}</td>
+      <td>{{ row.family_label }}</td>
+      <td class="num">{{ row.ceiling_label }}</td>
+      <td class="num">{{ row.burst_label }}</td>
+      <td class="num">{{ row.soak_label }}</td>
+      <td class="num">{{ row.cost_label }}</td>
+      <td><span class="pill {{ row.status_class }}">{{ row.status_label }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="caption">* Provisional cost uses the burst-only minimum — not yet confirmed under sustained load, may be optimistic.</p>
+</section>
+
+<section id="details">
+  <h2>Per-stack detail</h2>
+  {% for family in families %}
+  <h3 class="family-heading">{{ family.label }}</h3>
+  {% for stack in family.stacks %}
+  <div class="stack-detail">
+    <h4>{{ stack.display_name }}</h4>
+    <p class="facts">Burst minimum: <strong>{{ stack.burst_label }}</strong> &nbsp;·&nbsp; Soak-confirmed: <strong>{{ stack.soak_label }}</strong></p>
+    <div class="chart-grid">
+      <div>
+        {% if let Some(id) = stack.ladder_chart_id %}
+        <canvas id="{{ id }}"></canvas>
+        <p class="caption">{{ stack.ladder_caption }}</p>
+        {% else %}
+        <p class="muted">No sweep data yet.</p>
+        {% endif %}
+      </div>
+      <div>
+        {% if let Some(id) = stack.soak_chart_id %}
+        <canvas id="{{ id }}"></canvas>
+        <p class="caption">{{ stack.soak_caption }}</p>
+        {% else %}
+        <p class="muted">No soak data yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% endfor %}
+</section>
+
+<footer>
+  <p>Generated by <code>slashbench report</code>. Raw data: <code>results/sweep-summary.json</code>, <code>results/sweep.jsonl</code>, <code>results/soak-*.jsonl</code>, <code>results/dry-run.json</code>. Full methodology: <code>CLAUDE.md</code>.</p>
+</footer>
+
+<script>{{ chart_js|safe }}</script>
+<script>{{ chart_js_datalabels|safe }}</script>
+<script>
+{{ theme_init|safe }}
+{{ chart_script|safe }}
+{{ provider_switch_script|safe }}
+</script>
+</body>
+</html>

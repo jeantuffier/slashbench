@@ -15,8 +15,68 @@
     12,
     8
   ],
-  "repeats": 2,
+  "repeats": 3,
   "results": [
+    {
+      "burst_minimum_mb": 12,
+      "burst_passing_rungs_mb": [
+        512,
+        384,
+        256,
+        192,
+        128,
+        96,
+        64,
+        48,
+        32,
+        24,
+        16,
+        12
+      ],
+      "soak_confirmed_mb": 16,
+      "stack": "rocket"
+    },
+    {
+      "burst_minimum_mb": 8,
+      "burst_passing_rungs_mb": [
+        512,
+        384,
+        256,
+        192,
+        128,
+        96,
+        64,
+        48,
+        32,
+        24,
+        16,
+        12,
+        8
+      ],
+      "soak_confirmed_mb": 12,
+      "stack": "actix-web"
+    },
+    {
+      "burst_minimum_mb": 256,
+      "burst_passing_rungs_mb": [
+        512,
+        384,
+        256
+      ],
+      "soak_confirmed_mb": 256,
+      "stack": "spring-java"
+    },
+    {
+      "burst_minimum_mb": 192,
+      "burst_passing_rungs_mb": [
+        512,
+        384,
+        256,
+        192
+      ],
+      "soak_confirmed_mb": 192,
+      "stack": "spring-kotlin"
+    },
     {
       "burst_minimum_mb": 24,
       "burst_passing_rungs_mb": [
@@ -33,6 +93,21 @@
       ],
       "soak_confirmed_mb": 24,
       "stack": "node-hono"
+    },
+    {
+      "burst_minimum_mb": 48,
+      "burst_passing_rungs_mb": [
+        512,
+        384,
+        256,
+        192,
+        128,
+        96,
+        64,
+        48
+      ],
+      "soak_confirmed_mb": 48,
+      "stack": "bun-hono"
     }
   ],
   "sla": {
@@ -40,8 +115,8 @@
     "p99_ms": 200.0
   },
   "soak_confirmation": {
-    "required_consecutive_passes": 2,
-    "sample_interval_secs": 10,
+    "required_consecutive_passes": 3,
+    "sample_interval_secs": 15,
     "skipped": false,
     "total_duration_secs": 70
   },

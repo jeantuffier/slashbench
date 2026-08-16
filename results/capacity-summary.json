@@ -1,0 +1,14 @@
+{
+  "cpu": "1.0",
+  "mem_mb": 256,
+  "results": [
+    {
+      "max_rps": 3200,
+      "stack": "rocket"
+    }
+  ],
+  "sla": {
+    "error_rate": 0.01,
+    "p99_ms": 200.0
+  }
+}

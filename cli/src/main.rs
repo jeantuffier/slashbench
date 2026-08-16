@@ -1,9 +1,14 @@
+mod capacity;
+mod charts;
 mod common;
+mod cost;
 mod docker;
 mod dry_run;
 mod k6;
 mod log;
+mod price_sweep;
 mod proc;
+mod report;
 mod soak;
 mod sweep;
 
@@ -35,6 +40,21 @@ enum Command {
     /// extended period, watching for memory growth or gradual latency/GC
     /// degradation that a short burst test can't catch (CLAUDE.md §4 step 4).
     Soak(soak::SoakArgs),
+    /// Fixed-resource capacity test — the perf-oriented complement to
+    /// `sweep`: at a fixed capped resource allocation, find max sustainable
+    /// throughput per stack (CLAUDE.md progress log, Aug 16).
+    Capacity(capacity::CapacityArgs),
+    /// Price-oriented complement to `capacity`: sweeps CPU *and* memory
+    /// together (not CPU fixed at 1.0) to find the minimum-cost combination
+    /// meeting the SLA at the shared target load — fractional CPU is normal
+    /// for every provider except GCP's instance-based tier (CLAUDE.md
+    /// progress log, Aug 16).
+    PriceSweep(price_sweep::PriceSweepArgs),
+    /// Generate the static HTML report from everything under results/ —
+    /// methodology, a cross-stack comparison grid, and per-stack detail
+    /// charts. Safe to re-run at any point; degrades gracefully for stacks
+    /// not yet measured.
+    Report(report::ReportArgs),
 }
 
 fn repo_root() -> PathBuf {
@@ -64,5 +84,16 @@ fn main() -> Result<()> {
             logger.info(format!("Log file: {}", log_path.display()));
             soak::run(&root, &logger, args)
         }
+        Command::Capacity(args) => {
+            let (logger, log_path) = Logger::new(&root, "capacity", cli.verbose)?;
+            logger.info(format!("Log file: {}", log_path.display()));
+            capacity::run(&root, &logger, args)
+        }
+        Command::PriceSweep(args) => {
+            let (logger, log_path) = Logger::new(&root, "price-sweep", cli.verbose)?;
+            logger.info(format!("Log file: {}", log_path.display()));
+            price_sweep::run(&root, &logger, args)
+        }
+        Command::Report(args) => report::run(&root, args),
     }
 }

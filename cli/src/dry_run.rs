@@ -1,11 +1,9 @@
-use crate::common::{resolve_stacks, BASE_URL, SLA_ERROR_RATE, SLA_P99_MS};
+use crate::common::{base_url, resolve_stacks, RATE_LADDER, SLA_ERROR_RATE, SLA_P99_MS};
 use crate::docker;
 use crate::k6;
 use crate::log::Logger;
 use anyhow::Result;
 use clap::Args;
-
-const RATE_LADDER: &[u32] = &[50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600];
 
 #[derive(Args)]
 pub struct DryRunArgs {
@@ -17,6 +15,7 @@ pub struct DryRunArgs {
 
 pub fn run(root: &std::path::Path, logger: &Logger, args: &DryRunArgs) -> Result<()> {
     let stacks = resolve_stacks(&args.stack);
+    let base_url = base_url();
     let mut ceilings: Vec<(String, Option<u32>)> = Vec::new();
 
     for stack_name in stacks {
@@ -24,11 +23,11 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &DryRunArgs) -> Result
         docker::ensure_postgres(root, logger)?;
         docker::reseed(root, logger)?;
         docker::start_stack(root, logger, stack_name)?;
-        docker::wait_http_ready(logger, &format!("{BASE_URL}/items?page=1&limit=1"), 30)?;
+        docker::wait_http_ready(logger, &format!("{base_url}/items?page=1&limit=1"), 30)?;
 
         let mut ceiling = None;
         for &rate in RATE_LADDER {
-            let result = k6::run(root, logger, BASE_URL, rate, &args.duration)?;
+            let result = k6::run(root, logger, &base_url, rate, &args.duration)?;
             if result.p99_ms <= SLA_P99_MS && result.error_rate <= SLA_ERROR_RATE {
                 ceiling = Some(rate);
                 logger.info(format!("rate={rate} -> PASS (ceiling so far: {rate})"));

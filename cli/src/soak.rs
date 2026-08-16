@@ -1,4 +1,4 @@
-use crate::common::{parse_duration_secs, resolve_stacks, BASE_URL, SLA_ERROR_RATE, SLA_P99_MS, SWEEP_CPU_LIMIT};
+use crate::common::{base_url, parse_duration_secs, resolve_stacks, SLA_ERROR_RATE, SLA_P99_MS, SWEEP_CPU_LIMIT};
 use crate::docker;
 use crate::k6;
 use crate::log::Logger;
@@ -167,6 +167,8 @@ pub fn run_soak_once(
         "=== {stack} soak: mem={mem_mb}MiB target_rate={target_rate}req/s total={total_secs}s sample_interval={sample_interval_secs}s (continuous) ==="
     ));
 
+    let base_url = base_url();
+
     docker::ensure_postgres(root, logger)?;
     docker::stop_stack(root, logger, stack)?;
     let override_path = docker::write_mem_override(root, stack, mem_mb, SWEEP_CPU_LIMIT)?;
@@ -178,7 +180,7 @@ pub fn run_soak_once(
     }
     docker::remove_override(&override_path);
 
-    if docker::wait_http_ready(logger, &format!("{BASE_URL}/items?page=1&limit=1"), 30).is_err() {
+    if docker::wait_http_ready(logger, &format!("{base_url}/items?page=1&limit=1"), 30).is_err() {
         logger.error(format!("{stack} failed to become ready at mem={mem_mb}MiB — cannot soak"));
         docker::stop_stack(root, logger, stack)?;
         return Ok(SoakOutcome { passed: false, died_early: true });
@@ -190,13 +192,13 @@ pub fn run_soak_once(
     docker::reseed(root, logger)?;
 
     logger.info("Warm-up run (result discarded) ...");
-    let _ = k6::run(root, logger, BASE_URL, target_rate, "10s");
+    let _ = k6::run(root, logger, &base_url, target_rate, "10s");
 
     logger.info(format!("Starting continuous k6 run for {total_secs}s ..."));
-    let mut handle = k6::spawn(root, BASE_URL, target_rate, &format!("{total_secs}s"))?;
+    let mut handle = k6::spawn(root, &base_url, target_rate, &format!("{total_secs}s"))?;
 
     let client = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(2)).build()?;
-    let canary_url = format!("{BASE_URL}/items?page=1&limit=1");
+    let canary_url = format!("{base_url}/items?page=1&limit=1");
     let start = std::time::Instant::now();
     let mut consecutive_canary_failures = 0u32;
     let mut died_early = false;
