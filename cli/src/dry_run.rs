@@ -1,16 +1,27 @@
-use crate::common::{base_url, resolve_stacks, RATE_LADDER, SLA_ERROR_RATE, SLA_P99_MS};
+use crate::common::{base_url, median, resolve_stacks, RATE_LADDER, SLA_ERROR_RATE, SLA_P99_MS};
 use crate::docker;
 use crate::k6;
 use crate::log::Logger;
 use anyhow::Result;
 use clap::Args;
 
+/// Finds each stack's max sustainable throughput with no resource cap —
+/// calibrates the shared target load every other command uses. Mirrors
+/// sweep's own warm-up + N-repeats + median rigor (see CLAUDE.md progress
+/// log, Aug 17): a single k6 pass per rate step was fast but noisy enough
+/// on real cloud infrastructure to swing the recommended target load by 8x
+/// between two otherwise-identical runs, and this number is load-bearing
+/// for every downstream command.
 #[derive(Args)]
 pub struct DryRunArgs {
     #[arg(long, default_value = "all")]
     stack: String,
     #[arg(long, default_value = "20s")]
     duration: String,
+    #[arg(long, default_value = "10s")]
+    warmup: String,
+    #[arg(long, default_value_t = 3)]
+    repeats: u32,
 }
 
 pub fn run(root: &std::path::Path, logger: &Logger, args: &DryRunArgs) -> Result<()> {
@@ -27,12 +38,31 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &DryRunArgs) -> Result
 
         let mut ceiling = None;
         for &rate in RATE_LADDER {
-            let result = k6::run(root, logger, &base_url, rate, &args.duration)?;
-            if result.p99_ms <= SLA_P99_MS && result.error_rate <= SLA_ERROR_RATE {
+            logger.info("Warm-up run (result discarded) ...");
+            let _ = k6::run(root, logger, &base_url, rate, &args.warmup);
+
+            let mut p99s = Vec::with_capacity(args.repeats as usize);
+            let mut error_rates = Vec::with_capacity(args.repeats as usize);
+            for repeat in 0..args.repeats {
+                logger.info(format!("Measurement repeat {}/{} ...", repeat + 1, args.repeats));
+                docker::reseed(root, logger)?;
+                let result = k6::run(root, logger, &base_url, rate, &args.duration)?;
+                p99s.push(result.p99_ms);
+                error_rates.push(result.error_rate);
+            }
+
+            let median_p99 = median(p99s);
+            let median_error = median(error_rates);
+            let passed = median_p99 <= SLA_P99_MS && median_error <= SLA_ERROR_RATE;
+            logger.info(format!(
+                "rate={rate} p99(median)={median_p99:.1}ms error_rate(median)={:.2}% -> {}",
+                median_error * 100.0,
+                if passed { "PASS" } else { "FAIL" }
+            ));
+
+            if passed {
                 ceiling = Some(rate);
-                logger.info(format!("rate={rate} -> PASS (ceiling so far: {rate})"));
             } else {
-                logger.info(format!("rate={rate} -> SLA broken, ceiling is {ceiling:?}"));
                 break;
             }
         }

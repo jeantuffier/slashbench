@@ -1,4 +1,4 @@
-use crate::common::{base_url, resolve_stacks, RATE_LADDER, SLA_ERROR_RATE, SLA_P99_MS};
+use crate::common::{base_url, median, resolve_stacks, RATE_LADDER, SLA_ERROR_RATE, SLA_P99_MS};
 use crate::docker;
 use crate::k6;
 use crate::log::Logger;
@@ -11,7 +11,10 @@ use clap::Args;
 /// allocation instead of uncapped: answers "how much throughput does this
 /// stack deliver for a fixed cloud bill" rather than "what's its
 /// theoretical ceiling." See CLAUDE.md progress log (Aug 16) for the
-/// discussion that led here.
+/// discussion that led here. Shares `dry-run`'s warm-up + N-repeats +
+/// median rigor (Aug 17) for the same reason: a single k6 pass per rate
+/// step is noisy enough on real cloud infrastructure to misreport the
+/// ceiling this stack's throughput-per-dollar chart is built on.
 #[derive(Args)]
 pub struct CapacityArgs {
     #[arg(long, default_value = "all")]
@@ -27,6 +30,10 @@ pub struct CapacityArgs {
     mem_mb: u32,
     #[arg(long, default_value = "20s")]
     duration: String,
+    #[arg(long, default_value = "10s")]
+    warmup: String,
+    #[arg(long, default_value_t = 3)]
+    repeats: u32,
 }
 
 pub fn run(root: &std::path::Path, logger: &Logger, args: &CapacityArgs) -> Result<()> {
@@ -59,12 +66,31 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &CapacityArgs) -> Resu
 
         let mut ceiling = None;
         for &rate in RATE_LADDER {
-            let result = k6::run(root, logger, &base_url, rate, &args.duration)?;
-            if result.p99_ms <= SLA_P99_MS && result.error_rate <= SLA_ERROR_RATE {
+            logger.info("Warm-up run (result discarded) ...");
+            let _ = k6::run(root, logger, &base_url, rate, &args.warmup);
+
+            let mut p99s = Vec::with_capacity(args.repeats as usize);
+            let mut error_rates = Vec::with_capacity(args.repeats as usize);
+            for repeat in 0..args.repeats {
+                logger.info(format!("Measurement repeat {}/{} ...", repeat + 1, args.repeats));
+                docker::reseed(root, logger)?;
+                let result = k6::run(root, logger, &base_url, rate, &args.duration)?;
+                p99s.push(result.p99_ms);
+                error_rates.push(result.error_rate);
+            }
+
+            let median_p99 = median(p99s);
+            let median_error = median(error_rates);
+            let passed = median_p99 <= SLA_P99_MS && median_error <= SLA_ERROR_RATE;
+            logger.info(format!(
+                "rate={rate} p99(median)={median_p99:.1}ms error_rate(median)={:.2}% -> {}",
+                median_error * 100.0,
+                if passed { "PASS" } else { "FAIL" }
+            ));
+
+            if passed {
                 ceiling = Some(rate);
-                logger.info(format!("rate={rate} -> PASS (ceiling so far: {rate})"));
             } else {
-                logger.info(format!("rate={rate} -> SLA broken, ceiling is {ceiling:?}"));
                 break;
             }
         }
