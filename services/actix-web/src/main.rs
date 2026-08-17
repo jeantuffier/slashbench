@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -116,7 +117,10 @@ async fn list_items(db: web::Data<PgPool>, query: web::Query<ListQuery>) -> impl
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = PgPool::connect(&database_url)
+    // Explicit, matched across all six stacks — see rocket/src/main.rs for why.
+    let pool: PgPool = PgPoolOptions::new()
+        .max_connections(20)
+        .connect(&database_url)
         .await
         .expect("failed to connect to Postgres");
 

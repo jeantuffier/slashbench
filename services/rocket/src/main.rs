@@ -7,6 +7,7 @@ use rocket::response::status;
 use rocket::serde::json::Json;
 use rocket::State;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -119,7 +120,13 @@ async fn list_items(
 #[launch]
 async fn rocket() -> _ {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = PgPool::connect(&database_url)
+    // Explicit, matched across all six stacks (CLAUDE.md's "raw drivers,
+    // matched" fairness principle extends to pool size too — left implicit,
+    // this was a confound: sqlx/HikariCP/postgres.js all nominally default
+    // to 10, but observed behavior under load diverged sharply anyway).
+    let pool: PgPool = PgPoolOptions::new()
+        .max_connections(20)
+        .connect(&database_url)
         .await
         .expect("failed to connect to Postgres");
 

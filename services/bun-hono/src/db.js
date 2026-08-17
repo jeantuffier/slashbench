@@ -6,6 +6,7 @@ import postgres from 'postgres'
 // strings instead of numbers would break the shared contract with the
 // Rust/JVM stacks — so override the int8 parser to hand back a plain Number.
 const sql = postgres(process.env.DATABASE_URL, {
+  max: 20,
   types: {
     bigint: {
       to: 20,
