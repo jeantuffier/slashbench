@@ -23,6 +23,9 @@ services:
     profiles: ["rocket"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+      # Forces Hyper/Rocket's hardcoded 128 listen backlog up to somaxconn
+      # (4096) via libc interception — see services/rocket/listen_override.c.
+      LD_PRELOAD: /app/listen_override.so
     ports:
       - "8080:8080"
     depends_on:
@@ -36,6 +39,9 @@ services:
     profiles: ["actix-web"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+      # Forces actix-server's effective listen backlog up to somaxconn
+      # (4096) via libc interception — see services/actix-web/listen_override.c.
+      LD_PRELOAD: /app/listen_override.so
     ports:
       - "8080:8080"
     depends_on:
