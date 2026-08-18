@@ -131,6 +131,7 @@ async fn main() -> std::io::Result<()> {
             .service(get_item)
             .service(list_items)
     })
+    .keep_alive(std::time::Duration::from_secs(75))
     .bind(("0.0.0.0", 8080))?
     .run()
     .await
