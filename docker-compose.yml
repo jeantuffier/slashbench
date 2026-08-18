@@ -23,9 +23,11 @@ services:
     profiles: ["rocket"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
-      # Forces Hyper/Rocket's hardcoded 128 listen backlog up to somaxconn
-      # (4096) via libc interception — see services/rocket/listen_override.c.
       LD_PRELOAD: /app/listen_override.so
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "8080:8080"
     depends_on:
@@ -39,9 +41,11 @@ services:
     profiles: ["actix-web"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
-      # Forces actix-server's effective listen backlog up to somaxconn
-      # (4096) via libc interception — see services/actix-web/listen_override.c.
       LD_PRELOAD: /app/listen_override.so
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "8080:8080"
     depends_on:
@@ -53,6 +57,10 @@ services:
     image: rg.fr-par.scw.cloud/slashbench/spring-java:latest
     platform: linux/amd64
     profiles: ["spring-java"]
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "8080:8080"
     depends_on:
@@ -64,6 +72,10 @@ services:
     image: rg.fr-par.scw.cloud/slashbench/spring-kotlin:latest
     platform: linux/amd64
     profiles: ["spring-kotlin"]
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "8080:8080"
     depends_on:
@@ -77,6 +89,10 @@ services:
     profiles: ["node-hono"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "8080:8080"
     depends_on:
@@ -90,6 +106,10 @@ services:
     profiles: ["bun-hono"]
     environment:
       DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     ports:
       - "8080:8080"
     depends_on:
