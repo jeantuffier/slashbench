@@ -28,7 +28,17 @@ pub const SWEEP_CPU_LIMIT: &str = "1.0";
 
 // Shared ascending-throughput ladder — used by dry-run (uncapped ceiling)
 // and capacity (ceiling at a fixed, capped resource allocation).
-pub const RATE_LADDER: &[u32] = &[50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600];
+//
+// Finer-grained between 1600-3200 than the original power-of-two steps: the
+// Aug 18 official dry-run found every stack passing cleanly at 1600 and
+// failing at 3200, recording a flat "1600 for all six" ceiling — but the
+// achieved throughput at the failing 3200 step actually varied widely
+// (~2300-2600 req/s for four stacks, ~1150-1200 for the two JVM stacks),
+// meaning the real per-stack ceilings sit inside that gap and the coarse
+// ladder was masking them.
+pub const RATE_LADDER: &[u32] = &[
+    50, 100, 200, 400, 800, 1600, 2000, 2400, 2800, 3200, 6400, 12800, 25600,
+];
 
 // Shared descending-memory ladder — used by sweep (1D, cpu fixed at 1.0)
 // and price_sweep (2D, nested under a cpu ladder).
