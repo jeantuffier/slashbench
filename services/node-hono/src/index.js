@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import http from 'node:http'
 import sql from './db.js'
 
 const app = new Hono()
@@ -42,4 +43,15 @@ app.get('/items', async (c) => {
 
 app.onError((err, c) => c.json({ error: err.message }, 500))
 
-serve({ fetch: app.fetch, port: 8080, hostname: '0.0.0.0' })
+serve({
+  fetch: app.fetch,
+  port: 8080,
+  hostname: '0.0.0.0',
+  createServer: (options, listener) => {
+    const server = http.createServer(options, listener)
+    server.keepAliveTimeout = 75_000
+    const realListen = server.listen.bind(server)
+    server.listen = (port, hostname, callback) => realListen(port, hostname, 4096, callback)
+    return server
+  },
+})

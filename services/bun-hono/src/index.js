@@ -49,5 +49,6 @@ app.onError((err, c) => c.json({ error: err.message }, 500))
 export default {
   port: 8080,
   hostname: '0.0.0.0',
+  idleTimeout: 75,
   fetch: app.fetch,
 }
