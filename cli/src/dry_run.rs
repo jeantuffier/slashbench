@@ -33,8 +33,23 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &DryRunArgs) -> Result
         logger.info(format!("=== {stack_name} ==="));
         docker::ensure_postgres(root, logger)?;
         docker::reseed(root, logger)?;
-        docker::start_stack(root, logger, stack_name)?;
-        docker::wait_http_ready(logger, &format!("{base_url}/items?page=1&limit=1"), 30)?;
+
+        // A start or readiness failure (e.g. a transient Docker networking/DNS
+        // hiccup) must cost just this stack, not the whole run — losing every
+        // remaining stack to one bad container would violate the "crash costs
+        // one step, not the run" principle sweep already follows.
+        if let Err(e) = docker::start_stack(root, logger, stack_name) {
+            logger.warn(format!("{stack_name} failed to start ({e}) -> skipping this stack"));
+            ceilings.push((stack_name.to_string(), None));
+            continue;
+        }
+
+        if docker::wait_http_ready(logger, &format!("{base_url}/items?page=1&limit=1"), 30).is_err() {
+            logger.warn(format!("{stack_name} failed to become ready -> skipping this stack"));
+            docker::stop_stack(root, logger, stack_name)?;
+            ceilings.push((stack_name.to_string(), None));
+            continue;
+        }
 
         let mut ceiling = None;
         for &rate in RATE_LADDER {
