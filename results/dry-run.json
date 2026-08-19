@@ -1,10 +1,30 @@
 {
   "ceilings": [
     {
-      "ceiling_rps": 3200,
+      "ceiling_rps": 2400,
       "stack": "rocket"
+    },
+    {
+      "ceiling_rps": 2400,
+      "stack": "actix-web"
+    },
+    {
+      "ceiling_rps": 2400,
+      "stack": "spring-java"
+    },
+    {
+      "ceiling_rps": 2400,
+      "stack": "spring-kotlin"
+    },
+    {
+      "ceiling_rps": 2000,
+      "stack": "node-hono"
+    },
+    {
+      "ceiling_rps": 2000,
+      "stack": "bun-hono"
     }
   ],
-  "recommended_target_load_rps": 1920,
-  "weakest_ceiling_rps": 3200
+  "recommended_target_load_rps": 1200,
+  "weakest_ceiling_rps": 2000
 }
