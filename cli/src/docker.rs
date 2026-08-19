@@ -32,11 +32,24 @@ pub fn sample_memory_bytes(stack: &str) -> Result<u64> {
         .context("parsing memory.current as an integer")
 }
 
+/// Postgres may live on a different host than the app container under test
+/// (`SLASHBENCH_POSTGRES_DOCKER_HOST`, e.g. `ssh://debian@<postgres-vm-ip>`)
+/// so its CPU doesn't share a host with — and confound — the app's own
+/// measured CPU/memory. Unset by default: local single-machine dev keeps
+/// using whichever `DOCKER_HOST` (or local socket) is already ambient.
+fn postgres_docker_cmd() -> Command {
+    let mut cmd = Command::new("docker");
+    if let Ok(host) = std::env::var("SLASHBENCH_POSTGRES_DOCKER_HOST") {
+        cmd.env("DOCKER_HOST", host);
+    }
+    cmd
+}
+
 pub fn ensure_postgres(root: &Path, logger: &Logger) -> Result<()> {
     proc::run(
         logger,
         "Ensuring postgres is up",
-        Command::new("docker").current_dir(root).args(["compose", "up", "-d", "postgres"]),
+        postgres_docker_cmd().current_dir(root).args(["compose", "up", "-d", "postgres"]),
     )?;
     wait_container_healthy(logger, "slashbench-postgres-1", 30)
 }
@@ -48,7 +61,7 @@ pub fn reseed(root: &Path, logger: &Logger) -> Result<()> {
     let started = Instant::now();
     logger.info("Reseeding database (truncate + 100k rows) ...");
 
-    let mut child = Command::new("docker")
+    let mut child = postgres_docker_cmd()
         .current_dir(root)
         .args([
             "compose", "exec", "-T", "postgres", "psql", "-U", "slashbench", "-d", "slashbench",
@@ -175,7 +188,7 @@ fn wait_container_healthy(logger: &Logger, container: &str, timeout_secs: u64) -
     let started = Instant::now();
     let deadline = started + Duration::from_secs(timeout_secs);
     loop {
-        let output = Command::new("docker")
+        let output = postgres_docker_cmd()
             .args(["inspect", "--format", "{{.State.Health.Status}}", container])
             .output()
             .context("running docker inspect")?;

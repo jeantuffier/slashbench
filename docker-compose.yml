@@ -16,13 +16,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # SLASHBENCH_POSTGRES_HOST defaults to the local compose service name
+  # ("postgres") for single-machine dev, unchanged. For the official
+  # multi-VM run it's set to the dedicated slashbench-postgres VM's IP, so
+  # Postgres's CPU doesn't share a host with (and confound) the app
+  # container's own measured CPU/memory — see CLAUDE.md's Aug 19 diagnostic.
+  # No depends_on for postgres: it may now live on a different host than the
+  # app container entirely (docker compose can't manage a cross-host health
+  # dependency), so the CLI's own ensure_postgres()/wait_http_ready() calls
+  # are the real readiness gate instead.
   rocket:
     build: ./services/rocket
     image: rg.fr-par.scw.cloud/slashbench/rocket:latest
     platform: linux/amd64
     profiles: ["rocket"]
     environment:
-      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+      DATABASE_URL: postgres://slashbench:slashbench@${SLASHBENCH_POSTGRES_HOST:-postgres}:5432/slashbench
       LD_PRELOAD: /app/listen_override.so
     ulimits:
       nofile:
@@ -30,9 +39,6 @@ services:
         hard: 65536
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   actix-web:
     build: ./services/actix-web
@@ -40,7 +46,7 @@ services:
     platform: linux/amd64
     profiles: ["actix-web"]
     environment:
-      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+      DATABASE_URL: postgres://slashbench:slashbench@${SLASHBENCH_POSTGRES_HOST:-postgres}:5432/slashbench
       LD_PRELOAD: /app/listen_override.so
     ulimits:
       nofile:
@@ -48,39 +54,34 @@ services:
         hard: 65536
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   spring-java:
     build: ./services/spring-java
     image: rg.fr-par.scw.cloud/slashbench/spring-java:latest
     platform: linux/amd64
     profiles: ["spring-java"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${SLASHBENCH_POSTGRES_HOST:-postgres}:5432/slashbench
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   spring-kotlin:
     build: ./services/spring-kotlin
     image: rg.fr-par.scw.cloud/slashbench/spring-kotlin:latest
     platform: linux/amd64
     profiles: ["spring-kotlin"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${SLASHBENCH_POSTGRES_HOST:-postgres}:5432/slashbench
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   node-hono:
     build: ./services/node-hono
@@ -88,16 +89,13 @@ services:
     platform: linux/amd64
     profiles: ["node-hono"]
     environment:
-      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+      DATABASE_URL: postgres://slashbench:slashbench@${SLASHBENCH_POSTGRES_HOST:-postgres}:5432/slashbench
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   bun-hono:
     build: ./services/bun-hono
@@ -105,13 +103,10 @@ services:
     platform: linux/amd64
     profiles: ["bun-hono"]
     environment:
-      DATABASE_URL: postgres://slashbench:slashbench@postgres:5432/slashbench
+      DATABASE_URL: postgres://slashbench:slashbench@${SLASHBENCH_POSTGRES_HOST:-postgres}:5432/slashbench
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
     ports:
       - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
