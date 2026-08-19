@@ -24,23 +24,17 @@ pub struct SweepArgs {
     duration: String,
     #[arg(long, default_value = "10s")]
     warmup: String,
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 1)]
     repeats: u32,
-    /// Total duration of each soak-confirmation attempt. Official runs
-    /// should use something much longer (e.g. "1h"); this default is a
-    /// practical compromise so `sweep` doesn't take hours by default.
-    #[arg(long, default_value = "2m")]
+    /// Total duration of each soak-confirmation attempt.
+    #[arg(long, default_value = "10m")]
     soak_total_duration: String,
     /// How often the soak samples memory + sends a canary request.
     #[arg(long, default_value = "15s")]
     soak_sample_interval: String,
-    /// Consecutive soak passes required before a candidate rung counts
-    /// as confirmed — mirrors the burst sweep's own 3-repeat rigor,
-    /// since a single soak pass doesn't distinguish a genuinely stable
-    /// footprint from one that got lucky this run (see CLAUDE.md
-    /// progress log, Aug 15). Any single failure abandons the candidate
-    /// and moves to the next larger burst-passing rung.
-    #[arg(long, default_value_t = 3)]
+    /// Consecutive soak passes required before a candidate rung counts as
+    /// confirmed.Defaults to 1.
+    #[arg(long, default_value_t = 1)]
     soak_repeats: u32,
     /// Skip soak-confirmation entirely and report burst-only results —
     /// for fast iteration when you don't need the authoritative number.

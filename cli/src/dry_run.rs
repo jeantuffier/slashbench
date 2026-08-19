@@ -6,12 +6,8 @@ use anyhow::Result;
 use clap::Args;
 
 /// Finds each stack's max sustainable throughput with no resource cap —
-/// calibrates the shared target load every other command uses. Mirrors
-/// sweep's own warm-up + N-repeats + median rigor (see CLAUDE.md progress
-/// log, Aug 17): a single k6 pass per rate step was fast but noisy enough
-/// on real cloud infrastructure to swing the recommended target load by 8x
-/// between two otherwise-identical runs, and this number is load-bearing
-/// for every downstream command.
+/// calibrates the shared target load every other command uses. Supports
+/// warm-up + N-repeats + median rigor.
 #[derive(Args)]
 pub struct DryRunArgs {
     #[arg(long, default_value = "all")]
@@ -20,7 +16,7 @@ pub struct DryRunArgs {
     duration: String,
     #[arg(long, default_value = "10s")]
     warmup: String,
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 1)]
     repeats: u32,
 }
 

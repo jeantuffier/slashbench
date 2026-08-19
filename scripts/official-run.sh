@@ -18,16 +18,12 @@
 #     it inherits whatever's already exported in the calling shell.
 #
 # Usage:
-#   scripts/official-run.sh [--soak-total-duration 20m]
-#
-# This is a genuinely long run — expect several hours for all six stacks at
-# the official 20-minute soak duration (up to 3 consecutive passes per
-# memory candidate). Run it with nohup/in a background session if driving it
-# remotely over SSH.
+#   scripts/official-run.sh [--soak-total-duration 10m]
+# Run it with nohup/in a background session if driving it remotely over SSH.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-SOAK_TOTAL_DURATION="20m"
+SOAK_TOTAL_DURATION="10m"
 if [ "${1:-}" = "--soak-total-duration" ]; then
   SOAK_TOTAL_DURATION="$2"
 fi

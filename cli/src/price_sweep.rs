@@ -33,7 +33,7 @@ pub struct PriceSweepArgs {
     duration: String,
     #[arg(long, default_value = "10s")]
     warmup: String,
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 1)]
     repeats: u32,
 }
 

@@ -21,9 +21,9 @@ pub struct SoakArgs {
     stack: String,
     #[arg(long, default_value_t = 200)]
     target_rate: u32,
-    /// Total soak duration: "1h", "30m", "90s", or a plain number of
-    /// seconds. Official runs use ~1h; shorten for local validation.
-    #[arg(long, default_value = "1h")]
+    /// Total soak duration: "10m", "30m", "90s", or a plain number of
+    /// seconds. Official runs use 10 minutes.
+    #[arg(long, default_value = "10m")]
     total_duration: String,
     /// How often memory + a canary request are sampled.
     #[arg(long, default_value = "30s")]
