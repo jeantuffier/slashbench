@@ -42,11 +42,20 @@ struct CpuMemPoint {
     min_mem_mb: Option<u32>,
 }
 
-fn append_price_sweep_jsonl(root: &std::path::Path, stack: &str, cpu: f64, mem_mb: u32, repeat: u32, r: &k6::K6Result) -> Result<()> {
+fn append_price_sweep_jsonl(
+    root: &std::path::Path,
+    run_id: &str,
+    stack: &str,
+    cpu: f64,
+    mem_mb: u32,
+    repeat: u32,
+    r: &k6::K6Result,
+) -> Result<()> {
     use std::io::Write as _;
     let path = root.join("results/price-sweep.jsonl");
     let mut file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
     let line = serde_json::json!({
+        "run_id": run_id,
         "stack": stack,
         "cpu": cpu,
         "mem_mb": mem_mb,
@@ -99,7 +108,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &PriceSweepArgs) -> Re
                 for repeat in 0..args.repeats {
                     docker::reseed(root, logger)?;
                     let result = k6::run(root, logger, &base_url, args.target_rate, &args.duration)?;
-                    append_price_sweep_jsonl(root, stack_name, cpu, mem_mb, repeat, &result)?;
+                    append_price_sweep_jsonl(root, &logger.run_id, stack_name, cpu, mem_mb, repeat, &result)?;
                     p99s.push(result.p99_ms);
                     error_rates.push(result.error_rate);
                 }
@@ -143,6 +152,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &PriceSweepArgs) -> Re
     }
 
     let report = serde_json::json!({
+        "run_id": logger.run_id,
         "target_rate_rps": args.target_rate,
         "sla": {"p99_ms": SLA_P99_MS, "error_rate": SLA_ERROR_RATE},
         "cpu_ladder": CPU_LADDER,

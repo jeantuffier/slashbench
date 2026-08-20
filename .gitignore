@@ -10,3 +10,4 @@ results/sweep.jsonl
 results/logs/
 .slashbench-mem-override-*.yml
 report/
+archives/

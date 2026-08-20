@@ -91,6 +91,7 @@ fn lookup_minimum_viable_mb(root: &std::path::Path, logger: &Logger, stack: &str
 
 fn append_soak_sample_jsonl(
     root: &std::path::Path,
+    run_id: &str,
     stack: &str,
     mem_ceiling_mb: u32,
     elapsed_secs: u64,
@@ -103,6 +104,7 @@ fn append_soak_sample_jsonl(
     let mut file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
     let line = serde_json::json!({
         "kind": "sample",
+        "run_id": run_id,
         "stack": stack,
         "mem_ceiling_mb": mem_ceiling_mb,
         "elapsed_secs": elapsed_secs,
@@ -117,6 +119,7 @@ fn append_soak_sample_jsonl(
 
 fn append_soak_aggregate_jsonl(
     root: &std::path::Path,
+    run_id: &str,
     stack: &str,
     mem_ceiling_mb: u32,
     elapsed_secs: u64,
@@ -128,6 +131,7 @@ fn append_soak_aggregate_jsonl(
     let mut file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
     let line = serde_json::json!({
         "kind": "aggregate",
+        "run_id": run_id,
         "stack": stack,
         "mem_ceiling_mb": mem_ceiling_mb,
         "elapsed_secs": elapsed_secs,
@@ -217,7 +221,7 @@ pub fn run_soak_once(
             mem_bytes as f64 / (1024.0 * 1024.0),
             if canary_ok { "ok" } else { "FAIL" }
         ));
-        append_soak_sample_jsonl(root, stack, mem_mb, elapsed, mem_bytes, canary_ok, canary_ms)?;
+        append_soak_sample_jsonl(root, &logger.run_id, stack, mem_mb, elapsed, mem_bytes, canary_ok, canary_ms)?;
 
         if canary_ok {
             consecutive_canary_failures = 0;
@@ -249,7 +253,7 @@ pub fn run_soak_once(
     } else {
         let aggregate = handle.wait(logger)?;
         let ok = aggregate.p99_ms <= SLA_P99_MS && aggregate.error_rate <= SLA_ERROR_RATE;
-        append_soak_aggregate_jsonl(root, stack, mem_mb, final_elapsed, ok, &aggregate)?;
+        append_soak_aggregate_jsonl(root, &logger.run_id, stack, mem_mb, final_elapsed, ok, &aggregate)?;
         ok
     };
 

@@ -42,11 +42,12 @@ pub struct SweepArgs {
     skip_soak_confirmation: bool,
 }
 
-fn append_sweep_jsonl(root: &std::path::Path, stack: &str, mem_mb: u32, repeat: u32, r: &k6::K6Result) -> Result<()> {
+fn append_sweep_jsonl(root: &std::path::Path, run_id: &str, stack: &str, mem_mb: u32, repeat: u32, r: &k6::K6Result) -> Result<()> {
     use std::io::Write as _;
     let path = root.join("results/sweep.jsonl");
     let mut file = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
     let line = serde_json::json!({
+        "run_id": run_id,
         "stack": stack,
         "mem_mb": mem_mb,
         "repeat": repeat,
@@ -108,7 +109,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
                 logger.info(format!("Measurement repeat {}/{} ...", repeat + 1, args.repeats));
                 docker::reseed(root, logger)?;
                 let result = k6::run(root, logger, &base_url, args.target_rate, &args.duration)?;
-                append_sweep_jsonl(root, stack_name, mem_mb, repeat, &result)?;
+                append_sweep_jsonl(root, &logger.run_id, stack_name, mem_mb, repeat, &result)?;
                 p99s.push(result.p99_ms);
                 error_rates.push(result.error_rate);
                 achieved.push(result.achieved_rate);
@@ -200,6 +201,7 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
     }
 
     let report = serde_json::json!({
+        "run_id": logger.run_id,
         "target_rate_rps": args.target_rate,
         "sla": {"p99_ms": SLA_P99_MS, "error_rate": SLA_ERROR_RATE},
         "cpu_limit": SWEEP_CPU_LIMIT,

@@ -406,6 +406,60 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
     std::fs::write(&out_path, html)?;
     println!("Report written to {}", out_path.display());
 
+    let archive_path = archive_results(root)?;
+    println!("Results archived to {}", archive_path.display());
+
+    Ok(())
+}
+
+/// The report is the last step of a full benchmark run (dry-run through
+/// report), so this is "the test is done" — bundle every raw result file
+/// plus the generated report into one dated zip under `archives/`, so a
+/// run's results travel together as a single artifact instead of staying
+/// scattered as loose files that a later run's `results/*.jsonl` appends
+/// could blend with.
+fn archive_results(root: &Path) -> Result<std::path::PathBuf> {
+    use zip::write::SimpleFileOptions;
+
+    let stamp = chrono::Utc::now().format("%Y-%m-%d %H-%M-%S").to_string();
+    let archives_dir = root.join("archives");
+    std::fs::create_dir_all(&archives_dir)?;
+    let zip_path = archives_dir.join(format!("slashbench results {stamp}.zip"));
+
+    let file = std::fs::File::create(&zip_path)?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+    for (dir, prefix) in [(root.join("results"), "results"), (root.join("report"), "report")] {
+        if dir.is_dir() {
+            add_dir_to_zip(&mut zip, &dir, prefix, options)?;
+        }
+    }
+
+    zip.finish()?;
+    Ok(zip_path)
+}
+
+fn add_dir_to_zip(
+    zip: &mut zip::ZipWriter<std::fs::File>,
+    dir: &Path,
+    zip_prefix: &str,
+    options: zip::write::SimpleFileOptions,
+) -> Result<()> {
+    use std::io::Write as _;
+
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = format!("{zip_prefix}/{}", entry.file_name().to_string_lossy());
+        if path.is_dir() {
+            add_dir_to_zip(zip, &path, &name, options)?;
+        } else {
+            zip.start_file(&name, options)?;
+            let bytes = std::fs::read(&path)?;
+            zip.write_all(&bytes)?;
+        }
+    }
     Ok(())
 }
 
@@ -434,13 +488,25 @@ fn aggregate_sweep_steps(rows: &[(u32, f64, f64)]) -> Vec<SweepStepAgg> {
     steps
 }
 
+// results/soak-{stack}.jsonl is append-only forever — it holds every soak
+// run ever attempted for this stack, not just the most recent one. Filter
+// down to the freshest run_id actually present, so a later run's samples
+// never blend with an older/diagnostic run's. Files written entirely
+// before run_id existed have no tagged rows at all — in that case fall
+// back to using everything, rather than going blank, since there's no way
+// to tell which of those untagged rows are "the" run; the very next
+// run_id-tagged run appended to the file self-heals this automatically.
 fn read_soak_samples(root: &Path, stack: &str) -> Vec<(u64, f64, bool)> {
     let path = root.join(format!("results/soak-{stack}.jsonl"));
     let Ok(content) = std::fs::read_to_string(path) else { return Vec::new() };
-    content
+    let rows: Vec<Value> = content
         .lines()
         .filter_map(|line| serde_json::from_str::<Value>(line).ok())
         .filter(|v| v["kind"].as_str() == Some("sample"))
+        .collect();
+    let latest_run_id = rows.iter().filter_map(|v| v["run_id"].as_str()).max();
+    rows.iter()
+        .filter(|v| latest_run_id.is_none() || v["run_id"].as_str() == latest_run_id)
         .filter_map(|v| Some((v["elapsed_secs"].as_u64()?, v["mem_mib"].as_f64()?, v["canary_ok"].as_bool().unwrap_or(true))))
         .collect()
 }
@@ -476,11 +542,19 @@ fn dry_run_ceilings(dry_run: &Option<Value>) -> BTreeMap<String, Option<u32>> {
     map
 }
 
+// results/sweep.jsonl is append-only forever — same treatment as
+// read_soak_samples above: filter to the freshest run_id actually present
+// (falling back to everything for files with no tagged rows at all, which
+// self-heals the moment a run_id-tagged run is appended).
 fn read_sweep_jsonl(root: &Path) -> BTreeMap<String, Vec<(u32, f64, f64)>> {
     let mut map: BTreeMap<String, Vec<(u32, f64, f64)>> = BTreeMap::new();
     let Ok(content) = std::fs::read_to_string(root.join("results/sweep.jsonl")) else { return map };
-    for line in content.lines() {
-        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+    let rows: Vec<Value> = content.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()).collect();
+    let latest_run_id = rows.iter().filter_map(|v| v["run_id"].as_str()).max();
+    for v in &rows {
+        if latest_run_id.is_some() && v["run_id"].as_str() != latest_run_id {
+            continue;
+        }
         let (Some(stack), Some(mem_mb), Some(p99), Some(err)) =
             (v["stack"].as_str(), v["mem_mb"].as_u64(), v["p99_ms"].as_f64(), v["error_rate"].as_f64())
         else {

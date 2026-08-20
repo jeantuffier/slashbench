@@ -14,20 +14,29 @@ use std::sync::Mutex;
 pub struct Logger {
     file: Mutex<File>,
     pub verbose: bool,
+    /// A unique identifier for this specific invocation, shared with the log
+    /// filename's own timestamp. Every row this run appends to a
+    /// results/*.jsonl file carries this as "run_id", and every summary
+    /// JSON this run writes records it too — so a later `report` generation
+    /// can filter each append-only file down to just its most recent run
+    /// instead of silently blending every run ever appended together (the
+    /// original bug: sweep.jsonl/soak-*.jsonl accumulate forever across
+    /// the whole project's history unless something reads them run-aware).
+    pub run_id: String,
 }
 
 impl Logger {
     pub fn new(root: &Path, command: &str, verbose: bool) -> Result<(Self, PathBuf)> {
         let logs_dir = root.join("results/logs");
         std::fs::create_dir_all(&logs_dir).context("creating results/logs")?;
-        let stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+        let stamp = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
         let path = logs_dir.join(format!("{command}-{stamp}.log"));
         let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&path)
             .with_context(|| format!("opening {}", path.display()))?;
-        Ok((Logger { file: Mutex::new(file), verbose }, path))
+        Ok((Logger { file: Mutex::new(file), verbose, run_id: stamp }, path))
     }
 
     fn write(&self, level: &str, msg: &str) {
