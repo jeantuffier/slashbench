@@ -202,8 +202,12 @@ pub fn bar_chart_init(canvas_id: &str, title: &str, x_label: &str, bars: &[Bar],
     let raw_values: Vec<f64> = bars.iter().map(|b| b.value).collect();
     let colors: Vec<String> = bars.iter().map(|b| color_placeholder(&b.color_key)).collect();
     let value_labels: Vec<&str> = bars.iter().map(|b| b.value_label.as_str()).collect();
+    // Falls back to value_label when a bar has no extra tooltip detail —
+    // same pattern bar_series_json already uses for the provider charts.
+    let tooltip_labels: Vec<&str> = bars.iter().map(|b| b.tooltip_label.as_deref().unwrap_or(&b.value_label)).collect();
 
     let mut options = base_options(title, Some(x_label), None);
+    options["plugins"]["tooltip"] = json!({ "callbacks": { "label": "__TOOLTIP_LABELS__" } });
     options["indexAxis"] = json!("y");
     let max_value = raw_values.iter().cloned().fold(0.0_f64, f64::max).max(1.0);
 
@@ -258,8 +262,10 @@ pub fn bar_chart_init(canvas_id: &str, title: &str, x_label: &str, bars: &[Bar],
     // in after serializing. Still just wiring data into the library's own
     // documented formatter/callback shapes, not drawing anything ourselves.
     let value_labels_json = serde_json::to_string(&value_labels).unwrap();
+    let tooltip_labels_json = serde_json::to_string(&tooltip_labels).unwrap();
     let mut config_str = splice_colors(&serde_json::to_string(&config).unwrap())
-        .replace("\"__VALUE_LABELS__\"", &format!("function(v,ctx){{return {value_labels_json}[ctx.dataIndex];}}"));
+        .replace("\"__VALUE_LABELS__\"", &format!("function(v,ctx){{return {value_labels_json}[ctx.dataIndex];}}"))
+        .replace("\"__TOOLTIP_LABELS__\"", &format!("function(ctx){{return {tooltip_labels_json}[ctx.dataIndex];}}"));
     if log_scale {
         config_str = config_str.replace("\"__LOG_TICK_LABEL__\"", "function(v){return Math.round(Math.pow(2,v));}");
     }

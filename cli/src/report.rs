@@ -31,6 +31,25 @@ fn display_name(stack: &str) -> &'static str {
     }
 }
 
+/// Three stacks (spring-java, spring-kotlin, node-hono) consistently failed
+/// to survive a 10-minute sustained-load soak — not a memory-insufficiency
+/// problem (spring-java still failed identically at 3x the memory), but poor
+/// recovery from a shared, brief external disruption that Rocket/Actix-web
+/// absorb near-instantly (see CLAUDE.md's Aug 20 entries for the full
+/// investigation). bun-hono is a genuine borderline case: 1 of 3 independent
+/// attempts passed. This distinguishes both from a generic "not confirmed
+/// yet" label, which would wrongly imply the testing is simply incomplete.
+fn soak_status(stack: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    // (grid status label, grid soak-column label, stack-detail soak label)
+    match stack {
+        "spring-java" | "spring-kotlin" | "node-hono" => {
+            Some(("resilience gap", "did not survive soak", "did not survive a sustained soak (see below)"))
+        }
+        "bun-hono" => Some(("borderline (1/3 soak)", "1 of 3 soak attempts passed", "borderline — passed 1 of 3 independent soak attempts")),
+        _ => None,
+    }
+}
+
 /// Generate the static HTML report from everything under results/ — reads
 /// whatever's present (dry-run.json, sweep-summary.json, sweep.jsonl,
 /// soak-{stack}.jsonl) and degrades gracefully for stacks not yet measured,
@@ -130,12 +149,23 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
     } else {
         let bars: Vec<Bar> = footprint_rows
             .iter()
-            .map(|(stack, mb, provisional)| Bar {
-                label: display_name(stack).to_string(),
-                value: *mb as f64,
-                color_key: family_key_of(stack).to_string(),
-                value_label: format!("{mb} MiB{}", if *provisional { " (provisional)" } else { "" }),
-                tooltip_label: None,
+            .map(|(stack, mb, provisional)| {
+                let (short_suffix, full_detail) = if !*provisional {
+                    (String::new(), None)
+                } else if *stack == "bun-hono" {
+                    ("*".to_string(), Some(format!("{mb} MiB (burst only) — borderline: passed 1 of 3 independent 10-min soak attempts")))
+                } else if soak_status(stack).is_some() {
+                    ("*".to_string(), Some(format!("{mb} MiB (burst only) — did not survive a sustained 10-min soak; see the resilience finding below")))
+                } else {
+                    (" (provisional)".to_string(), None)
+                };
+                Bar {
+                    label: display_name(stack).to_string(),
+                    value: *mb as f64,
+                    color_key: family_key_of(stack).to_string(),
+                    value_label: format!("{mb} MiB{short_suffix}"),
+                    tooltip_label: full_detail,
+                }
             })
             .collect();
         let id = next_id();
@@ -268,10 +298,11 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
             let cost = effective_mb.map(|mb| monthly_compute_cost_usd(&cost::GCP_INSTANCE_BASED, 1.0, mb));
             let provisional = cost.is_some() && soak_mb.is_none();
 
-            let (status_class, status_label) = match soak_mb {
-                Some(_) => ("status-good", "soak-confirmed"),
-                None if burst_mb.is_some() => ("status-warning", "burst only"),
-                None => ("status-muted", "not measured"),
+            let (status_class, status_label) = match (soak_mb, soak_status(stack)) {
+                (Some(_), _) => ("status-good", "soak-confirmed"),
+                (None, Some((label, _, _))) => ("status-warning", label),
+                (None, None) if burst_mb.is_some() => ("status-warning", "burst only"),
+                (None, None) => ("status-muted", "not measured"),
             };
 
             grid_rows.push(GridRow {
@@ -279,7 +310,9 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
                 family_label: family_label.to_string(),
                 ceiling_label: ceilings.get(stack).copied().flatten().map(|c| format!("{c} req/s")).unwrap_or_else(|| "—".to_string()),
                 burst_label: burst_mb.map(|m| format!("{m} MiB")).unwrap_or_else(|| "—".to_string()),
-                soak_label: soak_mb.map(|m| format!("{m} MiB")).unwrap_or_else(|| "not confirmed".to_string()),
+                soak_label: soak_mb
+                    .map(|m| format!("{m} MiB"))
+                    .unwrap_or_else(|| soak_status(stack).map(|(_, grid_label, _)| grid_label.to_string()).unwrap_or_else(|| "not confirmed".to_string())),
                 cost_label: cost.map(|c| format!("${c:.2}{}", if provisional { "*" } else { "" })).unwrap_or_else(|| "—".to_string()),
                 status_class: status_class.to_string(),
                 status_label: status_label.to_string(),
@@ -324,7 +357,9 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
             detail_stacks.push(StackDetail {
                 display_name: display_name(stack).to_string(),
                 burst_label: burst_mb.map(|m| format!("{m} MiB")).unwrap_or_else(|| "not yet measured".to_string()),
-                soak_label: soak_mb.map(|m| format!("{m} MiB")).unwrap_or_else(|| "not yet confirmed".to_string()),
+                soak_label: soak_mb
+                    .map(|m| format!("{m} MiB"))
+                    .unwrap_or_else(|| soak_status(stack).map(|(_, _, detail_label)| detail_label.to_string()).unwrap_or_else(|| "not yet confirmed".to_string())),
                 ladder_chart_id,
                 ladder_caption: format!("Green = met the {SLA_P99_MS:.0}ms / {:.0}% SLA at that ceiling; red = broke it.", SLA_ERROR_RATE * 100.0),
                 soak_chart_id,

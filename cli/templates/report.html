@@ -21,12 +21,18 @@
 
 <section id="headline">
   <h2>Minimum viable footprint</h2>
-  <p>The soak-confirmed minimum memory each stack can run at while still meeting the SLA under sustained load — the actual result this benchmark exists to measure. Log scale, since the range spans over an order of magnitude.</p>
+  <p>The soak-confirmed minimum memory each stack can run at while still meeting the SLA under sustained load — the actual result this benchmark exists to measure. Log scale, since the range spans over an order of magnitude. Bars marked <code>*</code> are burst-only, not soak-confirmed — hover for why; see the resilience finding below for the full story.</p>
   {% if let Some(id) = footprint_chart_id %}
   <canvas id="{{ id }}"></canvas>
   {% else %}
   <p class="muted">No stacks have a measured footprint yet.</p>
   {% endif %}
+</section>
+
+<section id="resilience">
+  <h2>A second finding: recovery from a shared disruption under sustained load</h2>
+  <p>During the 10-minute sustained-load soak, every stack occasionally experiences the same brief, external-looking disruption — even Rocket and Actix-web show one anomalous slow sample each. What differs is <strong>recovery</strong>: Rocket and Actix-web absorb it near-instantly (one slow sample, then straight back to baseline), keeping their whole-run p99 comfortably under the SLA. Three stacks — Java + Spring Boot, Kotlin + Spring Boot, and Node + Hono — do not: the same brief event turns into an extended, multi-hundred-millisecond-to-multi-second tail severe enough to fail the SLA, consistently, across every independent attempt tested (3-6 attempts per stack, all failing). More memory doesn't fix it — Java + Spring Boot still failed identically at 3x its normal allocation.</p>
+  <p>Bun + Hono is a genuine borderline case, not grouped with either side: across 3 independent attempts, it passed once and failed twice. It sits closer to the Rust stacks' fast-recovery behavior than to the other three's consistent failure, without being as reliable as Rocket/Actix-web. Postgres checkpoint I/O, container file-descriptor limits, GC heap pressure, and load-generator CPU contention were each tested directly and ruled out as the cause of the *severity difference* between stacks — the disruption itself is shared and external; only the recovery gap is stack-dependent. Full investigation: <code>CLAUDE.md</code>'s Aug 20 entries.</p>
 </section>
 
 <section id="cost">
@@ -58,6 +64,7 @@
   <h3>Throughput per dollar at a fixed resource allocation</h3>
   {% if let Some(id) = perf_chart_id %}
   <canvas id="{{ id }}"></canvas>
+  <p class="caption">Node + Hono and Bun + Hono sit right at a shared throughput ceiling here (most likely Postgres-bound — neither showed CPU saturation when re-tested live) — a single-pass burst test at this exact boundary is noisy and can tip either way run to run, confirmed by re-testing: the two swapped positions entirely on a second attempt. Treat their relative order as a near-tie, not a stable result.</p>
   {% else %}
   <p class="muted">No capacity data yet — run <code>slashbench capacity</code>.</p>
   {% endif %}
@@ -83,7 +90,7 @@
     </tbody>
   </table>
   </div>
-  <p class="caption">* Provisional cost uses the burst-only minimum — not yet confirmed under sustained load, may be optimistic.</p>
+  <p class="caption">* Cost marked with an asterisk uses the burst-only minimum, not a soak-confirmed one. For "resilience gap"/"borderline" stacks this isn't a testing gap — see the resilience finding above for why sustained-load confirmation wasn't reached.</p>
 </section>
 
 <section id="details">
