@@ -67,6 +67,7 @@ struct ReportTemplate {
     footprint_chart_id: Option<String>,
     cost_chart_id: Option<String>,
     price_chart_id: Option<String>,
+    price_sweep_target_rate: Option<u32>,
     perf_chart_id: Option<String>,
     providers: Vec<ProviderOption>,
     grid_rows: Vec<GridRow>,
@@ -208,6 +209,14 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
     // apples-to-apples since fractional CPU is normal everywhere except
     // GCP's instance-based tier (see cost.rs). Measured once (price-sweep),
     // priced five ways.
+    //
+    // The target load itself (not just the resulting cheapest config) needs
+    // surfacing in the template — otherwise "cheapest config meeting the
+    // SLA" reads as if it could be at any load, including a trivially low
+    // one where every stack would look cheap. Real number: the same shared
+    // target_rate_rps locked from dry-run and used for every official run.
+    let price_sweep_summary = read_json(root, "results/price-sweep-summary.json");
+    let price_sweep_target_rate = price_sweep_summary.as_ref().and_then(|s| s["target_rate_rps"].as_u64()).map(|v| v as u32);
     let price_sweep_data = read_price_sweep(root);
     let price_chart_id = if price_sweep_data.is_empty() {
         None
@@ -376,6 +385,7 @@ pub fn run(root: &Path, args: &ReportArgs) -> Result<()> {
         footprint_chart_id,
         cost_chart_id,
         price_chart_id,
+        price_sweep_target_rate,
         perf_chart_id,
         providers,
         grid_rows,

@@ -54,9 +54,10 @@
     {% endfor %}
   </div>
 
-  <h3>Cheapest configuration meeting the SLA</h3>
+  <h3>Cheapest configuration meeting the SLA{% if let Some(rate) = price_sweep_target_rate %} at {{ rate }} req/s sustained{% endif %}</h3>
   {% if let Some(id) = price_chart_id %}
   <canvas id="{{ id }}"></canvas>
+  <p class="caption">Every stack is tested against the same fixed load{% if let Some(rate) = price_sweep_target_rate %} — {{ rate }} requests/second, sustained for the full measurement window, not a single request{% endif %}. "Cheapest" means the smallest (cpu, memory) combination that still holds the SLA (p99 &lt; 200ms, error rate &lt; 1%) at that load — a config that only works for a lone request wouldn't pass this bar.</p>
   {% else %}
   <p class="muted">No price-sweep data yet — run <code>slashbench price-sweep</code>.</p>
   {% endif %}
