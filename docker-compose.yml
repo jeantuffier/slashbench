@@ -5,6 +5,15 @@ services:
       POSTGRES_USER: slashbench
       POSTGRES_PASSWORD: slashbench
       POSTGRES_DB: slashbench
+    # checkpoint_timeout/max_wal_size raised well past any single soak's
+    # duration (10min official default) -- the stock 5min checkpoint_timeout
+    # was found (Aug 20 diagnostic) to cause a ~4.5min checkpoint write-out
+    # phase (checkpoint_completion_target=0.9 spreads it over 90% of the
+    # interval) that lands inside every soak window, producing a late-run
+    # latency spike on whichever stack happens to be running -- a Postgres
+    # I/O artifact of the test methodology, unrelated to any app/runtime.
+    # See CLAUDE.md's Aug 20 entry for the full diagnostic.
+    command: ["postgres", "-c", "checkpoint_timeout=30min", "-c", "max_wal_size=4GB"]
     ports:
       - "5432:5432"
     volumes:
