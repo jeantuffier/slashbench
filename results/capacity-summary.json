@@ -1,10 +1,30 @@
 {
   "cpu": "1.0",
-  "mem_mb": 256,
+  "mem_mb": 512,
   "results": [
     {
-      "max_rps": 3200,
+      "max_rps": 2400,
       "stack": "rocket"
+    },
+    {
+      "max_rps": 2400,
+      "stack": "actix-web"
+    },
+    {
+      "max_rps": 2000,
+      "stack": "spring-java"
+    },
+    {
+      "max_rps": 2000,
+      "stack": "spring-kotlin"
+    },
+    {
+      "max_rps": 2000,
+      "stack": "node-hono"
+    },
+    {
+      "max_rps": 2400,
+      "stack": "bun-hono"
     }
   ],
   "sla": {

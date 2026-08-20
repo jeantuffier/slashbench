@@ -15,98 +15,69 @@
     12,
     8
   ],
-  "repeats": 3,
+  "repeats": 1,
   "results": [
     {
-      "burst_minimum_mb": 12,
+      "burst_minimum_mb": 128,
       "burst_passing_rungs_mb": [
         512,
         384,
         256,
         192,
-        128,
-        96,
-        64,
-        48,
-        32,
-        24,
-        16,
-        12
+        128
       ],
-      "soak_confirmed_mb": 16,
+      "soak_confirmed_mb": 128,
       "stack": "rocket"
     },
     {
-      "burst_minimum_mb": 8,
+      "burst_minimum_mb": 512,
       "burst_passing_rungs_mb": [
-        512,
-        384,
-        256,
-        192,
-        128,
-        96,
-        64,
-        48,
-        32,
-        24,
-        16,
-        12,
-        8
+        512
       ],
-      "soak_confirmed_mb": 12,
+      "soak_confirmed_mb": 512,
       "stack": "actix-web"
     },
     {
-      "burst_minimum_mb": 256,
+      "burst_minimum_mb": 384,
       "burst_passing_rungs_mb": [
         512,
-        384,
-        256
+        384
       ],
-      "soak_confirmed_mb": 256,
+      "soak_confirmed_mb": null,
       "stack": "spring-java"
     },
     {
-      "burst_minimum_mb": 192,
+      "burst_minimum_mb": 384,
       "burst_passing_rungs_mb": [
         512,
-        384,
-        256,
-        192
+        384
       ],
-      "soak_confirmed_mb": 192,
+      "soak_confirmed_mb": null,
       "stack": "spring-kotlin"
     },
     {
-      "burst_minimum_mb": 24,
+      "burst_minimum_mb": 96,
       "burst_passing_rungs_mb": [
         512,
         384,
         256,
         192,
         128,
-        96,
-        64,
-        48,
-        32,
-        24
+        96
       ],
-      "soak_confirmed_mb": 24,
+      "soak_confirmed_mb": null,
       "stack": "node-hono"
     },
     {
-      "burst_minimum_mb": 48,
+      "burst_minimum_mb": 128,
       "burst_passing_rungs_mb": [
         512,
         384,
         256,
         192,
-        128,
-        96,
-        64,
-        48
+        128
       ],
-      "soak_confirmed_mb": 48,
+      "soak_confirmed_mb": null,
       "stack": "bun-hono"
     }
   ],
@@ -115,10 +86,10 @@
     "p99_ms": 200.0
   },
   "soak_confirmation": {
-    "required_consecutive_passes": 3,
+    "required_consecutive_passes": 1,
     "sample_interval_secs": 15,
     "skipped": false,
-    "total_duration_secs": 70
+    "total_duration_secs": 600
   },
-  "target_rate_rps": 200
+  "target_rate_rps": 1200
 }
