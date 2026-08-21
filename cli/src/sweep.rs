@@ -55,6 +55,7 @@ fn append_sweep_jsonl(root: &std::path::Path, run_id: &str, stack: &str, mem_mb:
         "p99_ms": r.p99_ms,
         "error_rate": r.error_rate,
         "achieved_rate": r.achieved_rate,
+        "checks_pass_rate": r.checks_pass_rate,
     });
     writeln!(file, "{}", serde_json::to_string(&line)?)?;
     Ok(())
@@ -104,12 +105,14 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
             let mut p99s = Vec::with_capacity(args.repeats as usize);
             let mut error_rates = Vec::with_capacity(args.repeats as usize);
             let mut achieved = Vec::with_capacity(args.repeats as usize);
+            let mut checks_ok = true;
 
             for repeat in 0..args.repeats {
                 logger.info(format!("Measurement repeat {}/{} ...", repeat + 1, args.repeats));
                 docker::reseed(root, logger)?;
                 let result = k6::run(root, logger, &base_url, args.target_rate, &args.duration)?;
                 append_sweep_jsonl(root, &logger.run_id, stack_name, mem_mb, repeat, &result)?;
+                checks_ok &= result.checks_pass_rate >= 1.0;
                 p99s.push(result.p99_ms);
                 error_rates.push(result.error_rate);
                 achieved.push(result.achieved_rate);
@@ -120,11 +123,12 @@ pub fn run(root: &std::path::Path, logger: &Logger, args: &SweepArgs) -> Result<
             let median_p99 = median(p99s);
             let median_error = median(error_rates);
             let median_achieved = median(achieved);
-            let passed = median_p99 <= SLA_P99_MS && median_error <= SLA_ERROR_RATE;
+            let passed = median_p99 <= SLA_P99_MS && median_error <= SLA_ERROR_RATE && checks_ok;
 
             logger.info(format!(
-                "mem={mem_mb}MiB achieved(median)={median_achieved:.1}req/s p99(median)={median_p99:.1}ms error_rate(median)={:.2}% -> {}",
+                "mem={mem_mb}MiB achieved(median)={median_achieved:.1}req/s p99(median)={median_p99:.1}ms error_rate(median)={:.2}% checks={} -> {}",
                 median_error * 100.0,
+                if checks_ok { "ok" } else { "FAILED (response content mismatch)" },
                 if passed { "PASS" } else { "FAIL" }
             ));
 

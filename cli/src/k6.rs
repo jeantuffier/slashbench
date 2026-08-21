@@ -10,6 +10,7 @@ pub struct K6Result {
     pub p99_ms: f64,
     pub error_rate: f64,
     pub achieved_rate: f64,
+    pub checks_pass_rate: f64,
 }
 
 #[derive(Deserialize)]
@@ -20,8 +21,9 @@ struct K6Summary {
 #[derive(Deserialize)]
 struct K6Metrics {
     http_req_duration: DurationMetric,
-    http_req_failed: FailedMetric,
+    http_req_failed: RateMetric,
     http_reqs: ReqsMetric,
+    checks: RateMetric,
 }
 
 #[derive(Deserialize)]
@@ -33,7 +35,7 @@ struct DurationMetric {
 }
 
 #[derive(Deserialize)]
-struct FailedMetric {
+struct RateMetric {
     value: f64,
 }
 
@@ -71,6 +73,7 @@ fn parse_summary(summary_path: &Path) -> Result<K6Result> {
         p99_ms: summary.metrics.http_req_duration.p99,
         error_rate: summary.metrics.http_req_failed.value,
         achieved_rate: summary.metrics.http_reqs.rate,
+        checks_pass_rate: summary.metrics.checks.value,
     })
 }
 
@@ -110,12 +113,13 @@ pub fn run(root: &Path, logger: &Logger, base_url: &str, rate: u32, duration: &s
     let result = parse_summary(&summary_path)?;
 
     logger.info(format!(
-        "k6 done in {:.1}s: achieved={:.1}req/s p95={:.1}ms p99={:.1}ms error_rate={:.2}%",
+        "k6 done in {:.1}s: achieved={:.1}req/s p95={:.1}ms p99={:.1}ms error_rate={:.2}% checks_pass_rate={:.2}%",
         started.elapsed().as_secs_f64(),
         result.achieved_rate,
         result.p95_ms,
         result.p99_ms,
-        result.error_rate * 100.0
+        result.error_rate * 100.0,
+        result.checks_pass_rate * 100.0
     ));
 
     Ok(result)
@@ -180,12 +184,13 @@ impl K6Handle {
         let result = parse_summary(&self.summary_path)?;
 
         logger.info(format!(
-            "k6 (continuous) done in {:.1}s: whole-run aggregate achieved={:.1}req/s p95={:.1}ms p99={:.1}ms error_rate={:.2}%",
+            "k6 (continuous) done in {:.1}s: whole-run aggregate achieved={:.1}req/s p95={:.1}ms p99={:.1}ms error_rate={:.2}% checks_pass_rate={:.2}%",
             elapsed.as_secs_f64(),
             result.achieved_rate,
             result.p95_ms,
             result.p99_ms,
-            result.error_rate * 100.0
+            result.error_rate * 100.0,
+            result.checks_pass_rate * 100.0
         ));
 
         Ok(result)

@@ -140,6 +140,7 @@ fn append_soak_aggregate_jsonl(
         "p99_ms": r.p99_ms,
         "error_rate": r.error_rate,
         "achieved_rate": r.achieved_rate,
+        "checks_pass_rate": r.checks_pass_rate,
     });
     writeln!(file, "{}", serde_json::to_string(&line)?)?;
     Ok(())
@@ -252,7 +253,14 @@ pub fn run_soak_once(
         false
     } else {
         let aggregate = handle.wait(logger)?;
-        let ok = aggregate.p99_ms <= SLA_P99_MS && aggregate.error_rate <= SLA_ERROR_RATE;
+        let checks_ok = aggregate.checks_pass_rate >= 1.0;
+        if !checks_ok {
+            logger.error(format!(
+                "{stack} soak at mem={mem_mb}MiB: response content checks failed (pass rate {:.2}%) — treating as FAILED",
+                aggregate.checks_pass_rate * 100.0
+            ));
+        }
+        let ok = aggregate.p99_ms <= SLA_P99_MS && aggregate.error_rate <= SLA_ERROR_RATE && checks_ok;
         append_soak_aggregate_jsonl(root, &logger.run_id, stack, mem_mb, final_elapsed, ok, &aggregate)?;
         ok
     };
