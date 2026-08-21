@@ -103,7 +103,7 @@ async fn list_items(db: web::Data<PgPool>, query: web::Query<ListQuery>) -> impl
         Err(e) => return internal_error(e),
     };
 
-    let total: i64 = match sqlx::query_scalar("SELECT COUNT(*) FROM items")
+    let total: i64 = match sqlx::query_scalar("SELECT reltuples::bigint FROM pg_class WHERE oid = 'items'::regclass")
         .fetch_one(db.get_ref())
         .await
     {

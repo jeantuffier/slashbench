@@ -58,7 +58,10 @@ public class ItemRepository {
     }
 
     public long count() {
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM items", Long.class);
+        Long total = jdbcTemplate.queryForObject(
+            "SELECT reltuples::bigint FROM pg_class WHERE oid = 'items'::regclass",
+            Long.class
+        );
         return total != null ? total : 0L;
     }
 }

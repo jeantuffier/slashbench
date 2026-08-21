@@ -34,7 +34,7 @@ app.get('/items', async (c) => {
     SELECT id, name, description, price_cents, quantity, created_at, updated_at
     FROM items ORDER BY id LIMIT ${limit} OFFSET ${offset}
   `
-  const [{ count }] = await sql`SELECT COUNT(*) FROM items`
+  const [{ count }] = await sql`SELECT reltuples::bigint AS count FROM pg_class WHERE oid = 'items'::regclass`
 
   return c.json({ items, page, limit, total: count })
 })

@@ -51,6 +51,9 @@ class ItemRepository(private val jdbcTemplate: JdbcTemplate) {
     }
 
     fun count(): Long {
-        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM items", Long::class.java) ?: 0L
+        return jdbcTemplate.queryForObject(
+            "SELECT reltuples::bigint FROM pg_class WHERE oid = 'items'::regclass",
+            Long::class.java
+        ) ?: 0L
     }
 }

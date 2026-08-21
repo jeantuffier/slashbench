@@ -109,7 +109,7 @@ async fn list_items(
     .await
     .map_err(internal_error)?;
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items")
+    let total: i64 = sqlx::query_scalar("SELECT reltuples::bigint FROM pg_class WHERE oid = 'items'::regclass")
         .fetch_one(db.inner())
         .await
         .map_err(internal_error)?;
