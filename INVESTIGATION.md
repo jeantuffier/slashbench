@@ -1,6 +1,8 @@
-# Two bugs that made Rust look slow
+# Three bugs behind Slashbench's real numbers
 
 *A postmortem from building [Slashbench](./CLAUDE.md), a reproducible benchmark comparing Rust/JVM/JS backend cloud costs, for the JavaZone 2026 talk "Rust will slash your backend costs."*
+
+The first two of these bugs made two Rust services look four times slower than they really were. The third was the opposite kind of surprise: a bug that had been sitting, unnoticed, in every one of the six services from day one — one that made *every* stack fail identically, for a reason that had nothing to do with language or runtime at all, and that only a longer test could ever have exposed.
 
 ## Context
 
@@ -288,6 +290,72 @@ Reproduced clean twice at rate=800 (p99=8.99ms, then p99=8.42ms on a repeat run 
 
 ---
 
+## Investigation #3: the query that had been there all along
+
+### An overnight run that should have "just worked"
+
+Months after the backlog and keep-alive fixes above, with both Rust stacks finally at parity, the project hit a data-integrity bug: the raw result files were append-only and accumulating data from every run ever made, silently blending old and new measurements together. That got fixed properly (every row tagged with a run ID, the report filtering to the freshest one, and a new step that zips a run's results into one dated archive). With a clean slate and the fix in place, the plan was simple: kick off the real, overnight, three-repeat, 15-minute-soak official benchmark — the actual dataset the talk would be built on — and check on it in the morning.
+
+Checking on it in the morning revealed it wasn't running anymore. It had stopped on its own, about 7.5 hours in, having gotten through barely more than the first stage. **Every one of the six services had failed soak confirmation, at every memory size tested, all the way up to the largest one on the ladder.** That included Rocket and Actix-web — the same two services from Investigations #1 and #2, now thoroughly fixed and, until this exact night, completely reliable. Something had broken *everything*, uniformly, for the first time in the project's history.
+
+### The first real clue: a suspiciously precise clock
+
+Every failure had the same shape: canary request latency climbing smoothly over tens of seconds, memory climbing right alongside it, then two back-to-back timeouts and a declared death. Laid out against the timeline of when each stack's soak attempt had actually started, one pattern jumped out immediately: **every single death, across all six services and every memory size, regardless of what time of night that specific attempt happened to start, landed in the same narrow band — roughly 600 to 860 seconds after the soak began.** Ten to fourteen minutes in, every time, independent of wall-clock time.
+
+That's a very specific kind of clue. A cause tied to a *time of day* (a cron job, a scheduled backup, a maintenance window) would scatter unpredictably across attempts that started at wildly different hours. A cause tied to *elapsed time since the test itself began* wouldn't — and that's what this was. It also explained, immediately, why nothing like this had ever shown up before: every previous soak test in this project's history had run for 10 minutes or less. Tonight's tests ran 15. The bug had probably always been reachable — nothing had ever run long enough to reach it.
+
+### Nine reproductions, and a long list of things it wasn't
+
+Reproducing it was straightforward and unpleasant: pick the simplest case (Rocket, at the largest memory size, the one with the most headroom), run the exact same 15-minute soak in isolation, and watch. It failed on the first attempt, at 811 seconds. It failed on the second, at 841. The third, 839. It kept failing, in that same ten-to-fourteen-minute window, nine times out of nine — a reproduction rate good enough to build real, layered, live monitoring around, adding one more angle of measurement each time and letting the next run either confirm or kill the current best guess.
+
+Nine live reproductions later, in roughly this order, all of the following had been measured directly and ruled out — not reasoned away, actually checked with numbers:
+
+- **Postgres's checkpoint schedule.** Checkpoints fire on a strict 30-minute wall-clock cadence — confirmed straight from the container's own logs. Writing a small script to line every death up against every checkpoint's start/end window showed most deaths had no checkpoint activity anywhere near them at all. If anything, this made the "elapsed time, not wall clock" clue *more* convincing, not less — a wall-clock-driven cause should have shown *some* alignment with a fixed 30-minute grid, and it didn't.
+- **Autovacuum.** A plausible next guess, given the workload is nothing but inserts into a table that starts at 100,000 rows and roughly quadruples by the time of death — a textbook trigger for Postgres's insert-driven autovacuum. `pg_stat_activity`, polled every 8 seconds for the full 14-minute window, showed **zero** active autovacuum workers at any point, including right through the death itself.
+- **Postgres's own connection count and query latency.** Flat at 21 connections the entire time; the longest actively-running query never exceeded about 90 milliseconds — even as the client's own perceived response time climbed past two full seconds. Postgres was never slow to *answer* anything.
+- **Rocket's own socket and file-descriptor counts, inside the container.** Flat, unmoving, for the entire run, right up until the moment it died.
+- **Load-generator ephemeral port exhaustion.** If anything, TIME_WAIT sockets were *lower* near the death than at the start of the test — the opposite of what a port-exhaustion story would predict.
+- **CPU throttling**, checked directly via the container's own `cpu.stat` (`nr_throttled`, `throttled_usec`): zero throttling events, the entire run. Rocket's own CPU usage never broke 8% of its one allocated core.
+- **The target host's connection-tracking table** (`nf_conntrack`): 106 entries out of a 262,144 ceiling. Nowhere close.
+- **The load generator's own CPU and memory**, and the load-testing process's own resource use: essentially idle the whole time — load average under 0.5 on a four-core machine, all the way through the failure window.
+- **Disk I/O on the database's own host**, sampled every 5 seconds: write latency under a millisecond and disk utilization under a third, for the entire run, including the exact moment everything else fell apart. Writes only stopped because the app had already died — not the other way around.
+- **Real network packet loss**, on *both* legs of the path (load-generator to application, and separately application to database) — full packet captures, each analyzed for actual retransmissions, zero-window events, and duplicate acknowledgements. Zero matches, on either leg, anywhere in either capture.
+- **A blocking call buried somewhere in the application's own async code** (the kind of bug that can freeze an entire Tokio worker thread) — read through the whole handler; nothing there.
+
+Ten plausible mechanisms, each one checked with a real measurement rather than argued from a hunch, and every single one came back clean.
+
+### The signal that had been available the entire time
+
+What finally broke it open wasn't a new tool — it was pointing an already-used one (a plain `top`/`load average` sample, taken every 8 seconds) at a machine nobody had suspected yet: the database's own host, specifically its aggregate load, rather than any of the per-query or per-connection numbers already checked.
+
+It climbed. Not spiked, not fluctuated — climbed, smoothly and continuously, from 0.6 at the very start of a 15-minute run to over 16 right before the death, on a machine with exactly four real CPU cores. It crossed the four-core saturation line around the eight-to-nine-minute mark and kept climbing from there. Every per-query and per-connection number checked earlier had stayed healthy precisely *because* none of them measured aggregate, cumulative demand across the whole host — a load average is the one number that does, and it was the one number nobody had looked at yet.
+
+### Root cause: a pagination total that everyone happened to write the same way
+
+The application's list endpoint returns items *and* a `total` count, for pagination — completely standard API design, and part of this benchmark's own shared specification, independently implemented six times. Every one of those six implementations, in six different languages, computed that total the same obvious way:
+
+```sql
+SELECT COUNT(*) FROM items
+```
+
+Postgres has no fast path for this. Because of MVCC, an *exact* row count can only come from actually visiting rows — its cost is proportional to how many rows exist, not a constant. Under this benchmark's own workload — continuous inserts, no deletes, every single test starting from a 100,000-row baseline and growing to 300,000 or more *during that one test* — that per-request query gets measurably more expensive as the test itself runs. At 20% of the traffic mix hitting this endpoint, and the shared load fixed at 1200 requests per second, that's 240 of these count queries landing on the database every second, against a table that keeps getting bigger for as long as the test continues. The database's total CPU demand from this alone grows for the whole life of the test, and it crosses what four cores can sustain at almost exactly the same *relative* point every time — because it's driven by how many rows have accumulated since the last reseed, not by the time of day. That's the entire explanation for the tight, wall-clock-independent clustering that was the very first clue, and for why extending the soak from 10 minutes to 15 was exactly enough to walk into it for the first time.
+
+### The fix, and a gotcha almost missed
+
+The fix, applied identically to all six services: swap the exact count for Postgres's own planner estimate —
+
+```sql
+SELECT reltuples::bigint FROM pg_class WHERE oid = 'items'::regclass
+```
+
+— a number Postgres already keeps in its table metadata, costing nothing to read regardless of table size, in exchange for being approximate rather than exact. Entirely acceptable for a pagination total; nobody needs "exactly 300,417 items," they need "about 300,000."
+
+One thing almost slipped through: this benchmark reseeds its dataset before every test by truncating the table and reinserting from scratch, and `TRUNCATE` doesn't just reset that row-count estimate to zero — checked directly, it sets it to **-1**, Postgres's own sentinel value for "this table has never been analyzed." Every test would have reported a `total` of negative one, for its entire duration, if this had shipped without also adding one `ANALYZE items;` right after the reseed's insert. That one-line addition gives the estimate a real, correct starting point (verified: exactly 100,000, immediately after a reseed) every time, and it's fine for the estimate to drift slightly stale as the table grows over the following fifteen minutes — that's the entire, deliberate trade this fix makes.
+
+Verified locally against all six services before touching any real infrastructure — the same standing discipline this project has followed since Investigation #1's very first fix.
+
+---
+
 ## What this was actually like to debug
 
 A few things worth carrying into how this gets told, if it becomes a talk or an article:
@@ -301,3 +369,9 @@ A few things worth carrying into how this gets told, if it becomes a talk or an 
 **A closed GitHub issue is not the same as observed behavior.** The Rust backlog issue being marked "resolved" was worth checking, not trusting — and checking it directly (a from-scratch, isolated, minimally-reproducing test program on the exact toolchain in use) took ten minutes and produced a different answer than the issue thread implied. This is a generally reusable habit: when a fix is claimed upstream, verify it in your own environment before building on top of the claim.
 
 **Both real fixes were tiny.** A ~20-line `LD_PRELOAD` shim, and a single `.keep_alive()` call. The diagnostic distance between "these are both stuck at 400 req/s" and "here are two one-line fixes" was two multi-hour investigations involving packet captures, network namespace inspection, live database monitoring, and reading Rust's standard library source and an HTTP framework's issue tracker. That gap — small fix, large investigation — is normal for this class of bug, and worth saying out loud rather than presenting the final diff as if it were obvious from the start.
+
+**A parameter change can be a discovery tool, not just a test setting.** Investigation #3 only happened because the soak duration was extended from 10 minutes to 15 — a change made for better statistical confidence, with no expectation it would reveal a bug. It's worth treating "what happens if I let this run longer / push this harder / scale this bigger than my normal test does" as a real diagnostic technique in its own right, not just a robustness nice-to-have — some bugs are only reachable past a threshold nobody had a reason to cross before.
+
+**The identical symptom across all six services, this time, meant exactly what it looked like.** Investigations #1 and #2 warned against assuming a shared symptom implies a shared cause. Investigation #3 is the other side of that same coin: when six *independently written* services in six different languages fail in the exact same way, at the exact same relative time, the far more likely explanation is a cause they all genuinely share — in this case, a shared specification that six people (or six sessions of one) happened to implement identically. Telling these two situations apart matters, and the tell is in the *mechanism*, not just the symptom: two Rust services sharing a symptom for unrelated reasons still had to be independently verified with a fix that moved one number without moving the other; six services sharing both a symptom and its exact timing pointed at something upstream of all of them.
+
+**The most useful measurement was the most obvious one, aimed somewhere new.** A plain load-average sample was never a sophisticated tool — the reason it took nine reproductions to reach for it was that it got pointed at the database's host only after a long list of more specific, more targeted measurements (query duration, connection state, disk I/O, packet captures) had already come back clean. In hindsight, aggregate host-level load is worth checking early, specifically *because* it's the one number that reflects cumulative, system-wide demand rather than any single request, connection, or query in isolation — the kind of thing that stays invisible to measurements scoped too narrowly to see it.
