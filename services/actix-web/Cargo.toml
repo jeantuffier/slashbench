@@ -8,6 +8,7 @@ actix-web = "4"
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono"] }
 serde = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
+mimalloc = "0.1"
 
 [profile.release]
 lto = true

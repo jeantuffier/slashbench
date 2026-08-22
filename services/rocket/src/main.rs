@@ -1,6 +1,11 @@
 #[macro_use]
 extern crate rocket;
 
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 use chrono::{DateTime, Utc};
 use rocket::http::Status;
 use rocket::response::status;

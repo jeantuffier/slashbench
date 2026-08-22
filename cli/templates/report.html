@@ -125,6 +125,24 @@
   {% endfor %}
 </section>
 
+<section id="memory-elasticity">
+  <h2>A related finding: memory floor vs. actual usage</h2>
+  <p>Prompted by a direct question the numbers above raise: why do the two JS runtimes survive on a <em>smaller</em> memory ceiling than either Rust stack, when Rust has no garbage collector and should need less memory, not more? Answering it needed a separate, targeted check outside the main sweep/soak pipeline — running the identical sustained load (800 req/s, no CPU cap change) against rocket, node-hono, and bun-hono at a shared, deliberately generous 512 MiB ceiling (far above any of their sweep floors, so none of them are under memory pressure), sampling each container's real cgroup memory (<code>memory.current</code>) every 5 seconds for 150 seconds.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Stack</th><th>Steady-state RSS (512 MiB headroom, 800 req/s)</th><th>Sweep floor (minimum survivable)</th></tr></thead>
+    <tbody>
+      <tr><td>rocket</td><td class="num">~36 MiB (flat)</td><td class="num">128 MiB</td></tr>
+      <tr><td>bun-hono</td><td class="num">~104–112 MiB</td><td class="num">48 MiB</td></tr>
+      <tr><td>node-hono</td><td class="num">~145–169 MiB</td><td class="num">96 MiB</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="caption">One-off manual diagnostic (single load level, single run per stack), not part of the automated sweep/capacity/price-sweep pipeline — illustrative of the mechanism below, not a precise, repeated measurement.</p>
+  <p>Under identical, pressure-free conditions, Rust genuinely does use far less memory — 3–4x less than either JS runtime here. That's the opposite of what the sweep floor alone suggests, and it points at what the floor number actually measures: not baseline efficiency, but <em>elasticity under pressure</em>. V8 (Node) and JavaScriptCore (Bun) manage an adaptive heap — given spare headroom, they let it grow, since a bigger heap means fewer, cheaper GC cycles; squeezed into a tight ceiling (exactly what sweep's descending memory ladder does), the same collector compacts far more aggressively and reaches a much smaller real working set. Rust's allocator (plain glibc <code>malloc</code> here — confirmed via <code>ldd</code>, no jemalloc/mimalloc) does the opposite: it stays close to the live set <em>regardless</em> of how much cgroup headroom is available, which is exactly why it's flat at ~36 MiB whether given 512 MiB or far less — but that also means there's no adaptive "fat" to compress away when squeezed. Whatever headroom it genuinely needs beyond that lean baseline (connection buffers, in-flight request state, momentary allocation spikes under concurrent load) has to fit as hard bytes, and that appears to hit a wall around 128 MiB.</p>
+  <p>A ruled-out alternative worth naming: the first hypothesis was that Rust's async runtime (Tokio) was over-provisioning worker threads because Docker's CPU quota doesn't hide the host's real core count from <code>/proc/cpuinfo</code> — confirmed true (every stack sees all 4 host cores despite the 1.0 vCPU limit), but checking actual thread counts falsified it as the explanation: rocket (2 threads) and actix-web (3) both have <em>fewer</em> OS threads than node-hono (7) or bun-hono (6), the opposite of what that theory predicted.</p>
+</section>
+
 <section id="infra-economics">
   <h2>A related finding: instance hardware and price, Scaleway vs. GCP</h2>
   <p>Surfaced while cross-cloud-validating a Postgres CPU-saturation result on GCP (see <code>CLAUDE.md</code>'s Aug 20 entries for the full investigation) — not part of the core six-stack comparison above, but a genuinely relevant side-finding for a talk about cloud infrastructure economics. Comparing the two "4 vCPU / 16 GB RAM" instance types actually used for this project's official runs:</p>

@@ -1,4 +1,9 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use mimalloc::MiMalloc;
+
+#[global_allocator]
+static GLOBAL: MiMalloc = MiMalloc;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPoolOptions;
